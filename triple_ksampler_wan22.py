@@ -130,9 +130,9 @@ class TripleKSamplerWan22LightningAdvanced:
                     "INT",
                     {
                         "default": 4,
-                        "min": 1,
+                        "min": -1,
                         "max": 100,
-                        "tooltip": "Number of base (Stage 1) steps."
+                        "tooltip": "Number of base (Stage 1) steps. Use -1 for auto-calculation based on lightning_start."
                     }
                 ),
                 "lightning_start": (
@@ -179,6 +179,15 @@ class TripleKSamplerWan22LightningAdvanced:
                             "Boundary for sigma-based model switching. "
                             "Recommended 0.875 for T2V, 0.900 for I2V."
                         )
+                    }
+                ),
+                "manual_midpoint": (
+                    "INT",
+                    {
+                        "default": -1,
+                        "min": -1,
+                        "max": 99,
+                        "tooltip": "Manual step to switch from high-noise to low-noise model. Use -1 for auto-calculation."
                     }
                 ),
             }
@@ -381,7 +390,8 @@ class TripleKSamplerWan22LightningAdvanced:
         sampler_name: str,
         scheduler: str,
         use_boundary: bool,
-        boundary: float
+        boundary: float,
+        manual_midpoint: int
     ) -> Tuple[Dict[str, torch.Tensor]]:
         """
         Execute triple-stage cascade sampling with comprehensive logging.
@@ -395,7 +405,7 @@ class TripleKSamplerWan22LightningAdvanced:
             latent_image: Input latent image.
             seed: Random seed.
             shift: Sigma shift value.
-            base_steps: Number of base denoising steps.
+            base_steps: Number of base denoising steps (-1 for auto-calculation).
             base_cfg: CFG scale for base stage.
             lightning_start: Starting step in lightning schedule.
             lightning_steps: Total lightning steps.
@@ -403,6 +413,7 @@ class TripleKSamplerWan22LightningAdvanced:
             scheduler: Noise scheduler.
             use_boundary: Whether to use boundary-based switching.
             boundary: Sigma boundary for model switching.
+            manual_midpoint: Manual midpoint for model switching (-1 for auto-calculation).
 
         Returns:
             Tuple containing final latent dictionary.
@@ -415,6 +426,14 @@ class TripleKSamplerWan22LightningAdvanced:
             raise ValueError("lightning_steps must be at least 2.")
         if not (0 <= lightning_start < lightning_steps):
             raise ValueError("lightning_start must be within [0, lightning_steps-1].")
+        
+        # Auto-calculate base_steps if requested
+        if base_steps == -1:
+            multiplier = math.ceil(_MIN_TOTAL_STEPS / lightning_steps)
+            base_steps = lightning_start * multiplier
+            logger.info("Auto-calculated base_steps = %d", base_steps)
+        
+        # Validate base_steps after potential auto-calculation
         if lightning_start > 0 and base_steps < 1:
             raise ValueError("base_steps must be >= 1 when lightning_start > 0.")
 
@@ -427,7 +446,10 @@ class TripleKSamplerWan22LightningAdvanced:
         patched_low_lx2v = patcher.patch(low_model_lx2v, shift_value)[0]
 
         # Determine model switching strategy
-        if use_boundary:
+        if manual_midpoint != -1:
+            lightning_midpoint = manual_midpoint
+            logger.info("Using manual midpoint = %d", lightning_midpoint)
+        elif use_boundary:
             sampling = patched_high_lx2v.get_model_object("model_sampling")
             lightning_midpoint = self._compute_boundary_switching_step(
                 sampling, scheduler, lightning_steps, boundary
