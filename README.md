@@ -44,6 +44,41 @@ Simplified variant with auto-computed parameters:
 
 3. The nodes will appear under `TripleKSampler/sampling` category
 
+## Example Workflow
+
+A complete example workflow is provided in [`workflow_example.json`](workflow_example.json) that demonstrates:
+
+- **Side-by-side comparison** of both TripleKSampler nodes
+- **Complete Wan2.2 T2V setup** with proper model loading
+- **Lightning LoRA integration** for both HIGH and LOW models
+- **Video generation workflow** with VAE decoding and video export
+
+### Workflow Components
+
+The example workflow includes:
+
+1. **Model Setup:**
+   - `wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors` (Base model)
+   - `wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors` (Low noise model)
+   - `Wan2.2-Lightning_T2V-v1.1-A14B-4steps-lora_HIGH_fp16.safetensors`
+   - `Wan2.2-Lightning_T2V-v1.1-A14B-4steps-lora_LOW_fp16.safetensors`
+
+2. **Sampling Comparison:**
+   - **Main TripleKSampler:** Simplified interface with auto-computed parameters
+   - **Advanced TripleKSampler:** Full parameter control for fine-tuning
+
+3. **Video Output:**
+   - 832x480 resolution, 41 frames
+   - 16 FPS video export
+   - Separate outputs for comparison
+
+### Loading the Example
+
+1. Download `workflow_example.json` from this repository
+2. Open ComfyUI and drag the JSON file into the interface
+3. Ensure you have the required Wan2.2 models and LoRAs
+4. Queue the prompt to generate comparison videos
+
 ## Usage
 
 ### Basic Workflow
