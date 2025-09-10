@@ -800,7 +800,8 @@ class TripleKSamplerWan22Lightning:
             sampler_name=sampler_name,
             scheduler=scheduler,
             use_boundary=use_boundary,
-            boundary=boundary
+            boundary=boundary,
+            manual_midpoint=-1
         )
 
 
