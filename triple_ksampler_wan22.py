@@ -26,6 +26,9 @@ from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 # Development toggle for latent consistency checks
 _ENABLE_CONSISTENCY_CHECK: bool = False
 
+# Minimum total steps threshold for SimpleTripleKSampler quality assurance
+_MIN_TOTAL_STEPS = 25
+
 # Configure module logger
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -670,7 +673,7 @@ class SimpleTripleKSamplerWan22Lightning:
 
     def _compute_base_steps(self, lightning_steps: int) -> int:
         """
-        Compute base_steps to ensure base_steps * lightning_steps >= 20.
+        Compute base_steps to ensure base_steps * lightning_steps >= _MIN_TOTAL_STEPS.
 
         This ensures sufficient total sampling steps for quality results.
 
@@ -682,7 +685,7 @@ class SimpleTripleKSamplerWan22Lightning:
         """
         if lightning_steps <= 0:
             return 1
-        required = math.ceil(20 / float(lightning_steps))
+        required = math.ceil(_MIN_TOTAL_STEPS / float(lightning_steps))
         return max(1, int(required))
 
     def _calculate_percentage(self, numerator: float, denominator: float) -> int:

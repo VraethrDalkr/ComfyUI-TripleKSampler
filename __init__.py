@@ -12,8 +12,8 @@ from .triple_ksampler_wan22 import (
     NODE_DISPLAY_NAME_MAPPINGS,
 )
 
-__version__ = "1.0.0"
-__author__ = "dduval"
+__version__ = "0.1.0"
+__author__ = "VraethrDalkr"
 __description__ = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 
 # Export for ComfyUI node registration
