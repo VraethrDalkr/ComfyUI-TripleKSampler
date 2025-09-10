@@ -54,3 +54,6 @@ Thumbs.db
 *.log
 temp/
 output/
+
+# Development files
+CLAUDE.md

@@ -28,16 +28,16 @@ Full-featured triple-stage sampler with complete parameter control:
 Simplified variant with auto-computed parameters:
 
 - **Simplified Interface**: Fewer exposed parameters
-- **Auto-computed base_steps**: Ensures base_steps * lightning_steps >= 20
+- **Auto-computed base_steps**: Ensures base_steps * lightning_steps >= 25
 - **Fixed lightning_start**: Always set to 1
 - **Same Quality**: Uses the same underlying algorithm
 
 ## Installation
 
-1. Clone or download this repository to your ComfyUI custom_nodes directory:
+1. Clone this repository to your ComfyUI custom_nodes directory:
    ```bash
    cd ComfyUI/custom_nodes/
-   git clone <repository-url> ComfyUI-TripleKSampler
+   git clone https://github.com/VraethrDalkr/ComfyUI-TripleKSampler.git
    ```
 
 2. Restart ComfyUI
@@ -103,10 +103,31 @@ To test the nodes are properly loaded:
 2. Check console for any import errors
 3. Verify nodes appear in the node browser under `TripleKSampler/sampling`
 
+## Version History
+
+- **v0.1.0** - Initial release with configurable minimum total steps constant
+- Comprehensive triple-stage sampling implementation
+- Both full and simplified node variants
+- Professional code structure and documentation
+
 ## License
 
-[Add your license information here]
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Contributing
 
-[Add contribution guidelines here]
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## Support
+
+If you encounter issues or have questions:
+- Check the [Issues](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/issues) page
+- Create a new issue with detailed description and ComfyUI console output
+
+## Author
+
+**VraethrDalkr** - [GitHub Profile](https://github.com/VraethrDalkr)
