@@ -7,8 +7,8 @@ The sampling process includes base denoising, lightning high-model processing,
 and lightning low-model refinement stages.
 
 Classes:
-    TripleKSamplerWan22Lightning: Full-featured triple-stage sampler
-    SimpleTripleKSamplerWan22Lightning: Simplified variant with auto-computed parameters
+    TripleKSamplerWan22Lightning: Main triple-stage sampler with auto-computed parameters
+    TripleKSamplerWan22LightningAdvanced: Advanced variant with full parameter control
 """
 
 from __future__ import annotations
@@ -451,10 +451,9 @@ class TripleKSamplerWan22LightningAdvanced:
         else:
             # Log switching strategy
             if use_boundary:
-                switching_pct = self._calculate_percentage(lightning_midpoint_int, lightning_steps)
                 logger.info(
-                    "Model switching: sigma boundary=%s → switch at step %d/%d (~%d%%)",
-                    boundary, lightning_midpoint_int, lightning_steps, switching_pct
+                    "Model switching: sigma boundary = %s → switch at step %d of %d",
+                    boundary, lightning_midpoint_int, lightning_steps
                 )
             else:
                 logger.info(
@@ -756,7 +755,7 @@ class TripleKSamplerWan22Lightning:
             total_base_steps = max(total_base_steps, base_steps)
             pct_end = self._calculate_percentage(base_steps, total_base_steps)
             logger.info(
-                "Simple node: base_steps=%d (auto-computed) — "
+                "Simple node: base_steps = %d (auto-computed)."
                 "Stage 1 will denoise approx. 0%%–%d%%",
                 base_steps, pct_end
             )
