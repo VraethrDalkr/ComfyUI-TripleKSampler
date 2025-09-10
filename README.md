@@ -16,21 +16,23 @@ The nodes clone and patch models with sigma shift for optimal sampling without m
 
 ### TripleKSampler (Wan2.2-Lightning)
 
-Full-featured triple-stage sampler with complete parameter control:
+Main triple-stage sampler with optimized ease-of-use:
 
-- **Models**: Requires 3 models (high_model, high_model_lx2v, low_model_lx2v)
-- **Sampling Control**: Configurable base_steps, lightning_start, lightning_steps
-- **Model Switching**: Supports both midpoint and sigma boundary-based switching
-- **CFG Control**: Separate CFG for base stage, Lightning stages use CFG=1.0
+- **Streamlined Interface**: Essential parameters with smart defaults
+- **Auto-computed base_steps**: Ensures base_steps * lightning_steps >= 20 for quality
+- **Lightning-start Aware**: Auto-calculation accounts for when Lightning processing begins
+- **Fixed lightning_start**: Always set to 1 for optimal workflow
+- **Same Power**: Uses the same advanced algorithm as the Advanced node
 
-### Simple TripleKSampler (Wan2.2-Lightning)
+### TripleKSampler Advanced (Wan2.2-Lightning)
 
-Simplified variant with auto-computed parameters:
+Advanced variant with complete configurability:
 
-- **Simplified Interface**: Fewer exposed parameters
-- **Auto-computed base_steps**: Ensures base_steps * lightning_steps >= 25
-- **Fixed lightning_start**: Always set to 1
-- **Same Quality**: Uses the same underlying algorithm
+- **Full Parameter Control**: Every aspect of the sampling process is configurable
+- **Auto-calculation Options**: Both base_steps and midpoint can be auto-computed (-1) or manually set
+- **Lightning-start Aware**: Auto-calculation accounts for when Lightning processing begins
+- **Model Switching**: Supports midpoint, sigma boundary, and manual switching strategies
+- **Professional Features**: Advanced users get ultimate flexibility
 
 ## Installation
 
@@ -114,12 +116,34 @@ Simple approach that switches at the midpoint of lightning steps. Reliable and s
 ### Sigma Boundary Strategy  
 More sophisticated approach that analyzes sigma schedules to determine optimal switching point. Better quality but requires tuning boundary parameter for different use cases.
 
+## Configuration
+
+The package includes a `constants.py` file with user-configurable parameters:
+
+```python
+# Quality threshold for automatic base step calculation
+MIN_TOTAL_STEPS = 20
+
+# Development toggle for latent consistency debugging
+ENABLE_CONSISTENCY_CHECK = False
+
+# Default sigma boundaries for different model types
+DEFAULT_BOUNDARY_T2V = 0.875  # Text-to-video models
+DEFAULT_BOUNDARY_I2V = 0.900  # Image-to-video models
+
+# Logging configuration
+LOGGER_PREFIX = "[TripleKSampler]"
+LOG_LEVEL = "INFO"
+```
+
+Users can modify these values to tune sampling behavior without changing the core implementation.
+
 ## Logging
 
 The nodes provide detailed logging including:
 - Stage execution with step ranges and denoising percentages
 - Model switching strategy and computed switch points
-- Auto-computed parameter values (Simple node)
+- Auto-computed parameter values (both nodes when applicable)
 
 ## Development
 
@@ -131,6 +155,7 @@ The nodes provide detailed logging including:
 ### Code Structure
 - `__init__.py`: Package initialization and node registration
 - `triple_ksampler_wan22.py`: Main implementation with both node classes
+- `constants.py`: Configuration constants and user-tunable parameters
 
 ### Testing
 To test the nodes are properly loaded:
@@ -140,7 +165,15 @@ To test the nodes are properly loaded:
 
 ## Version History
 
-- **v0.1.0** - Initial release with configurable minimum total steps constant
+### v0.2.0 (Current)
+- **BREAKING**: Node names swapped for better UX - Simple variant is now main "TripleKSampler"
+- **Enhanced Advanced Node**: Auto-calculation options for both base_steps and manual_midpoint (-1 for auto)
+- **Lightning-start Awareness**: Auto-calculation accounts for lightning processing timing
+- **Configuration File**: Moved constants to separate `constants.py` with proper documentation
+- **Quality Threshold**: MIN_TOTAL_STEPS set to 20 for optimal quality/performance balance
+
+### v0.1.0
+- Initial release with configurable minimum total steps constant
 - Comprehensive triple-stage sampling implementation
 - Both full and simplified node variants
 - Professional code structure and documentation

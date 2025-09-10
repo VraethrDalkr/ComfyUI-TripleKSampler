@@ -23,17 +23,13 @@ import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 
-# Development toggle for latent consistency checks
-_ENABLE_CONSISTENCY_CHECK: bool = False
-
-# Minimum total steps threshold for SimpleTripleKSampler quality assurance
-_MIN_TOTAL_STEPS = 25
+from .constants import MIN_TOTAL_STEPS, ENABLE_CONSISTENCY_CHECK, LOGGER_PREFIX
 
 # Configure module logger
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     handler = logging.StreamHandler()
-    formatter = logging.Formatter("[TripleKSampler] %(levelname)s: %(message)s")
+    formatter = logging.Formatter(f"{LOGGER_PREFIX} %(levelname)s: %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 logger.propagate = False
@@ -429,7 +425,7 @@ class TripleKSamplerWan22LightningAdvanced:
         
         # Auto-calculate base_steps if requested
         if base_steps == -1:
-            multiplier = math.ceil(_MIN_TOTAL_STEPS / lightning_steps)
+            multiplier = math.ceil(MIN_TOTAL_STEPS / lightning_steps)
             base_steps = lightning_start * multiplier
             logger.info("Auto-calculated base_steps = %d", base_steps)
         
@@ -709,7 +705,7 @@ class TripleKSamplerWan22Lightning:
         """
         if lightning_steps <= 0:
             return 1
-        required = math.ceil(_MIN_TOTAL_STEPS / float(lightning_steps))
+        required = math.ceil(MIN_TOTAL_STEPS / float(lightning_steps))
         return max(1, int(required))
 
     def _calculate_percentage(self, numerator: float, denominator: float) -> int:
