@@ -40,18 +40,19 @@ logger.propagate = False
 logger.setLevel(logging.INFO)
 
 
-class TripleKSamplerWan22Lightning:
+class TripleKSamplerWan22LightningAdvanced:
     """
-    Triple-stage KSampler node for Wan2.2 split models with Lightning LoRA.
+    Advanced Triple-stage KSampler node for Wan2.2 split models with Lightning LoRA.
 
-    This node implements a sophisticated three-stage sampling process:
+    This advanced node provides complete parameter control for sophisticated
+    three-stage sampling process:
     1. Base denoising with high-noise model
     2. Lightning high-model processing
     3. Lightning low-model refinement
 
     The node clones and patches models with sigma shift for optimal sampling
     without mutating the original models. It supports both midpoint and
-    sigma boundary-based model switching strategies.
+    sigma boundary-based model switching strategies with full configurability.
 
     Attributes:
         RETURN_TYPES: Output types for ComfyUI
@@ -188,8 +189,9 @@ class TripleKSamplerWan22Lightning:
     FUNCTION = "sample"
     CATEGORY = "TripleKSampler/sampling"
     DESCRIPTION = (
-        "Triple-stage cascade sampler for Wan2.2 split models with Lightning LoRA. "
-        "Clones + patches sampling settings; no in-place mutation or caching."
+        "Advanced triple-stage cascade sampler with full parameter control for "
+        "Wan2.2 split models with Lightning LoRA. Supports both midpoint and "
+        "sigma boundary-based model switching."
     )
 
     def _get_model_patcher(self) -> ModelSamplingSD3:
@@ -547,16 +549,17 @@ class TripleKSamplerWan22Lightning:
         return latent_final
 
 
-class SimpleTripleKSamplerWan22Lightning:
+class TripleKSamplerWan22Lightning:
     """
-    Simplified TripleKSampler variant with auto-computed parameters.
+    Main Triple-stage KSampler node for Wan2.2 split models with Lightning LoRA.
 
-    This node provides a streamlined interface to the triple-stage sampling
-    process with fixed lightning_start=1 and auto-computed base_steps to
-    ensure base_steps * lightning_steps >= 20 for optimal quality.
+    This node provides an optimized interface to the triple-stage sampling
+    process with auto-computed parameters. Uses fixed lightning_start=1 and
+    auto-computed base_steps to ensure base_steps * lightning_steps >= _MIN_TOTAL_STEPS
+    for optimal quality.
 
-    The simplified interface exposes fewer parameters while maintaining
-    the full functionality of the underlying sampling algorithm.
+    This streamlined interface exposes the most essential parameters while
+    maintaining the full functionality of the advanced sampling algorithm.
     """
 
     @classmethod
@@ -667,8 +670,8 @@ class SimpleTripleKSamplerWan22Lightning:
     FUNCTION = "sample"
     CATEGORY = "TripleKSampler/sampling"
     DESCRIPTION = (
-        "Simple Triple-stage sampler: lightning_start fixed to 1 "
-        "and base_steps auto-computed."
+        "Triple-stage sampler for Wan2.2 split models with Lightning LoRA. "
+        "Optimized interface with auto-computed parameters for ease of use."
     )
 
     def _compute_base_steps(self, lightning_steps: int) -> int:
@@ -758,8 +761,8 @@ class SimpleTripleKSamplerWan22Lightning:
                 base_steps, pct_end
             )
 
-        # Delegate to full implementation
-        runner = TripleKSamplerWan22Lightning()
+        # Delegate to advanced implementation
+        runner = TripleKSamplerWan22LightningAdvanced()
         return runner.sample(
             high_model=high_model,
             high_model_lx2v=high_model_lx2v,
@@ -783,10 +786,10 @@ class SimpleTripleKSamplerWan22Lightning:
 # Node registration for ComfyUI
 NODE_CLASS_MAPPINGS = {
     "TripleKSamplerWan22Lightning": TripleKSamplerWan22Lightning,
-    "SimpleTripleKSamplerWan22Lightning": SimpleTripleKSamplerWan22Lightning
+    "TripleKSamplerWan22LightningAdvanced": TripleKSamplerWan22LightningAdvanced
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "TripleKSamplerWan22Lightning": "TripleKSampler (Wan2.2-Lightning)",
-    "SimpleTripleKSamplerWan22Lightning": "Simple TripleKSampler (Wan2.2-Lightning)"
+    "TripleKSamplerWan22LightningAdvanced": "TripleKSampler Advanced (Wan2.2-Lightning)"
 }

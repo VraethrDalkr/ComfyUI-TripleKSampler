@@ -7,12 +7,12 @@ triple-stage sampling workflow optimized for Wan2.2 split models with Lightning 
 
 from .triple_ksampler_wan22 import (
     TripleKSamplerWan22Lightning,
-    SimpleTripleKSamplerWan22Lightning,
+    TripleKSamplerWan22LightningAdvanced,
     NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "VraethrDalkr"
 __description__ = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 
@@ -21,7 +21,7 @@ __all__ = [
     "NODE_CLASS_MAPPINGS",
     "NODE_DISPLAY_NAME_MAPPINGS",
     "TripleKSamplerWan22Lightning",
-    "SimpleTripleKSamplerWan22Lightning",
+    "TripleKSamplerWan22LightningAdvanced",
 ]
 
 # ComfyUI will look for these specific variables
