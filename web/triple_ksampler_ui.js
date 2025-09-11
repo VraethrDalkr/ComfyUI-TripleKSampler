@@ -14,10 +14,16 @@ function toggleWidget(node, widget, show = false) {
     
     console.log("TripleKSampler: toggleWidget", widget.name, "show =", show, "current type =", widget.type);
     
-    widget.type = show ? widget.origType || widget.type : "hidden";
-    widget.computeSize = show ? 
-        (widget.origComputeSize || LiteGraph.LGraphNode.prototype.computeSize) : 
-        () => [0, -4];
+    widget.type = show ? (widget.origType || widget.type) : "hidden";
+    
+    if (show) {
+        if (widget.origComputeSize) {
+            widget.computeSize = widget.origComputeSize;
+        }
+        // If no original computeSize, leave the current one
+    } else {
+        widget.computeSize = () => [0, -4];
+    }
     
     if (show && !widget.origType) {
         widget.origType = widget.type;
@@ -96,9 +102,11 @@ app.registerExtension({
             toggleWidget(node, midpointWidget, showMidpoint);
             toggleWidget(node, boundaryWidget, showBoundary);
 
-            // Update node size and force redraw
-            node.setSize(node.computeSize());
+            // Force node redraw - ComfyUI will handle size automatically
             node.setDirtyCanvas(true, true);
+            if (node.graph && node.graph.canvas) {
+                node.graph.canvas.setDirty(true, true);
+            }
         };
 
         // Set up callback for strategy changes
