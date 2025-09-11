@@ -468,6 +468,8 @@ class TripleKSamplerWan22LightningAdvanced:
         if base_steps == -1:
             multiplier = math.ceil(MIN_TOTAL_STEPS / lightning_steps)
             base_steps = lightning_start * multiplier
+            # Add initial visual separator before first log message
+            bare_logger.info("")
             logger.info("Auto-calculated base_steps = %d", base_steps)
         
         # Validate base_steps after potential auto-calculation
@@ -849,9 +851,11 @@ class TripleKSamplerWan22Lightning:
             total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
             total_base_steps = max(total_base_steps, base_steps)
             pct_end = self._calculate_percentage(base_steps, total_base_steps)
+            # Add initial visual separator before first log message
+            bare_logger.info("")
             logger.info(
-                "Simple node: base_steps = %d (auto-computed)."
-                "Stage 1 will denoise approx. 0%%–%d%%",
+                "Simple node: base_steps = %d (auto-computed). "
+                "Stage 1 will denoise approx. 0%%–%.1f%%",
                 base_steps, pct_end
             )
 
