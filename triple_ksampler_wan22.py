@@ -23,7 +23,7 @@ import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 
-from .constants import MIN_TOTAL_STEPS, ENABLE_CONSISTENCY_CHECK, LOGGER_PREFIX
+from .constants import MIN_TOTAL_STEPS, ENABLE_CONSISTENCY_CHECK, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -157,11 +157,11 @@ class TripleKSamplerWan22LightningAdvanced:
                     comfy.samplers.KSampler.SCHEDULERS,
                     {"tooltip": "Scheduler for noise."}
                 ),
-                "use_boundary": (
-                    "BOOLEAN",
+                "midpoint_strategy": (
+                    ["50% midpoint", "Manual midpoint", "T2V boundary", "I2V boundary", "Manual boundary"],
                     {
-                        "default": False,
-                        "tooltip": "Switch model based on sigma boundary instead of midpoint."
+                        "default": "50% midpoint",
+                        "tooltip": "Strategy for switching between lightning high and low models."
                     }
                 ),
                 "boundary": (
@@ -177,7 +177,7 @@ class TripleKSamplerWan22LightningAdvanced:
                         )
                     }
                 ),
-                "manual_midpoint": (
+                "midpoint": (
                     "INT",
                     {
                         "default": -1,
@@ -385,9 +385,9 @@ class TripleKSamplerWan22LightningAdvanced:
         lightning_steps: int,
         sampler_name: str,
         scheduler: str,
-        use_boundary: bool,
+        midpoint_strategy: str,
         boundary: float,
-        manual_midpoint: int
+        midpoint: int
     ) -> Tuple[Dict[str, torch.Tensor]]:
         """
         Execute triple-stage cascade sampling with comprehensive logging.
@@ -407,9 +407,9 @@ class TripleKSamplerWan22LightningAdvanced:
             lightning_steps: Total lightning steps.
             sampler_name: Sampler algorithm.
             scheduler: Noise scheduler.
-            use_boundary: Whether to use boundary-based switching.
-            boundary: Sigma boundary for model switching.
-            manual_midpoint: Manual midpoint for model switching (-1 for auto-calculation).
+            midpoint_strategy: Strategy for lightning model switching.
+            boundary: Sigma boundary for manual boundary strategy.
+            midpoint: Manual midpoint for manual midpoint strategy.
 
         Returns:
             Tuple containing final latent dictionary.
@@ -441,16 +441,24 @@ class TripleKSamplerWan22LightningAdvanced:
         patched_high_lx2v = patcher.patch(high_model_lx2v, shift_value)[0]
         patched_low_lx2v = patcher.patch(low_model_lx2v, shift_value)[0]
 
-        # Determine model switching strategy
-        if manual_midpoint != -1:
-            lightning_midpoint = manual_midpoint
+        # Determine model switching strategy based on dropdown selection
+        if midpoint_strategy == "Manual midpoint":
+            lightning_midpoint = midpoint if midpoint != -1 else lightning_steps // 2
             logger.info("Using manual midpoint = %d", lightning_midpoint)
-        elif use_boundary:
+        elif midpoint_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
+            # Select appropriate boundary value
+            if midpoint_strategy == "T2V boundary":
+                boundary_value = DEFAULT_BOUNDARY_T2V
+            elif midpoint_strategy == "I2V boundary":
+                boundary_value = DEFAULT_BOUNDARY_I2V
+            else:  # Manual boundary
+                boundary_value = boundary
+            
             sampling = patched_high_lx2v.get_model_object("model_sampling")
             lightning_midpoint = self._compute_boundary_switching_step(
-                sampling, scheduler, lightning_steps, boundary
+                sampling, scheduler, lightning_steps, boundary_value
             )
-        else:
+        else:  # "50% midpoint" strategy
             lightning_midpoint = math.ceil(lightning_steps / 2)
             if lightning_midpoint >= lightning_steps:
                 lightning_midpoint = lightning_steps - 1
@@ -468,15 +476,18 @@ class TripleKSamplerWan22LightningAdvanced:
             stage2_skip_reason = "lightning_start beyond switch point"
         else:
             # Log switching strategy
-            if use_boundary:
+            if midpoint_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
+                boundary_value = DEFAULT_BOUNDARY_T2V if midpoint_strategy == "T2V boundary" else (
+                    DEFAULT_BOUNDARY_I2V if midpoint_strategy == "I2V boundary" else boundary
+                )
                 logger.info(
-                    "Model switching: sigma boundary = %s → switch at step %d of %d",
-                    boundary, lightning_midpoint_int, lightning_steps
+                    "Model switching: %s (boundary = %s) → switch at step %d of %d",
+                    midpoint_strategy, boundary_value, lightning_midpoint_int, lightning_steps
                 )
             else:
                 logger.info(
-                    "Model switching: midpoint strategy → switch at step %d of %d",
-                    lightning_midpoint_int, lightning_steps
+                    "Model switching: %s → switch at step %d of %d",
+                    midpoint_strategy, lightning_midpoint_int, lightning_steps
                 )
 
             if lightning_start == lightning_midpoint_int:
@@ -659,24 +670,11 @@ class TripleKSamplerWan22Lightning:
                     comfy.samplers.KSampler.SCHEDULERS,
                     {"tooltip": "Scheduler for noise."}
                 ),
-                "use_boundary": (
-                    "BOOLEAN",
+                "midpoint_strategy": (
+                    ["50% midpoint", "T2V boundary", "I2V boundary"],
                     {
-                        "default": False,
-                        "tooltip": "Switch models based on sigma boundary instead of midpoint."
-                    }
-                ),
-                "boundary": (
-                    "FLOAT",
-                    {
-                        "default": 0.875,
-                        "min": 0.0,
-                        "max": 1.0,
-                        "step": 0.001,
-                        "tooltip": (
-                            "Boundary for sigma-based switching. "
-                            "Recommended 0.875 for T2V, 0.900 for I2V."
-                        )
+                        "default": "50% midpoint",
+                        "tooltip": "Strategy for switching between lightning high and low models."
                     }
                 ),
             }
@@ -738,8 +736,7 @@ class TripleKSamplerWan22Lightning:
         lightning_steps: int,
         sampler_name: str,
         scheduler: str,
-        use_boundary: bool,
-        boundary: float
+        midpoint_strategy: str
     ) -> Tuple[Dict[str, torch.Tensor]]:
         """
         Execute simplified triple-stage sampling pipeline.
@@ -757,8 +754,7 @@ class TripleKSamplerWan22Lightning:
             lightning_steps: Total lightning steps.
             sampler_name: Sampler algorithm.
             scheduler: Noise scheduler.
-            use_boundary: Whether to use boundary-based switching.
-            boundary: Sigma boundary for model switching.
+            midpoint_strategy: Strategy for lightning model switching.
 
         Returns:
             Tuple containing final latent dictionary.
@@ -795,9 +791,9 @@ class TripleKSamplerWan22Lightning:
             lightning_steps=lightning_steps,
             sampler_name=sampler_name,
             scheduler=scheduler,
-            use_boundary=use_boundary,
-            boundary=boundary,
-            manual_midpoint=-1
+            midpoint_strategy=midpoint_strategy,
+            boundary=0.875,  # Default value for simple node
+            midpoint=-1      # Auto-calculate for simple node
         )
 
 
