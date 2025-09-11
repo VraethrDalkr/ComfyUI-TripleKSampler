@@ -48,7 +48,7 @@ Advanced variant with complete configurability:
 
 ## Example Workflow
 
-A complete example workflow is provided in [`workflow_example.json`](workflow_example.json) that demonstrates:
+A complete example workflow is provided in [`example_workflow.json`](example_workflow.json) that demonstrates:
 
 - **Side-by-side comparison** of both TripleKSampler nodes
 - **Complete Wan2.2 T2V setup** with proper model loading
@@ -76,7 +76,7 @@ The example workflow includes:
 
 ### Loading the Example
 
-1. Download `workflow_example.json` from this repository
+1. Download `example_workflow.json` from this repository
 2. Open ComfyUI and drag the JSON file into the interface
 3. Ensure you have the required Wan2.2 models and LoRAs
 4. Queue the prompt to generate comparison videos
