@@ -29,9 +29,9 @@ Main triple-stage sampler with optimized ease-of-use:
 Advanced variant with complete configurability:
 
 - **Full Parameter Control**: Every aspect of the sampling process is configurable
-- **Auto-calculation Options**: Both base_steps and midpoint can be auto-computed (-1) or manually set
+- **Auto-calculation Options**: Both base_steps and switch_step can be auto-computed (-1) or manually set
 - **Lightning-start Aware**: Auto-calculation accounts for when Lightning processing begins
-- **Model Switching**: Supports midpoint, sigma boundary, and manual switching strategies
+- **Model Switching**: Supports step-based, sigma boundary, and manual switching strategies
 - **Professional Features**: Advanced users get ultimate flexibility
 
 ## Installation
@@ -111,7 +111,7 @@ The example workflow includes:
 ## Model Switching Strategies
 
 ### Midpoint Strategy
-Simple approach that switches at the midpoint of lightning steps. Reliable and straightforward.
+Simple approach that switches at 50% of lightning steps. Reliable and straightforward.
 
 ### Sigma Boundary Strategy  
 More sophisticated approach that analyzes sigma schedules to determine optimal switching point. Better quality but requires tuning boundary parameter for different use cases.
@@ -167,7 +167,7 @@ To test the nodes are properly loaded:
 
 ### v0.2.0 (Current)
 - **BREAKING**: Node names swapped for better UX - Simple variant is now main "TripleKSampler"
-- **Enhanced Advanced Node**: Auto-calculation options for both base_steps and manual_midpoint (-1 for auto)
+- **Enhanced Advanced Node**: Auto-calculation options for both base_steps and switch_step (-1 for auto)
 - **Lightning-start Awareness**: Auto-calculation accounts for lightning processing timing
 - **Configuration File**: Moved constants to separate `constants.py` with proper documentation
 - **Quality Threshold**: MIN_TOTAL_STEPS set to 20 for optimal quality/performance balance
