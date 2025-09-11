@@ -165,7 +165,14 @@ To test the nodes are properly loaded:
 
 ## Version History
 
-### v0.3.0 (Current)
+### v0.3.1 (Current)
+- **BREAKING**: Standardized error handling with consistent 'fail fast' approach
+- **Enhanced Error Messages**: All configuration conflicts now raise ValueError with actionable guidance
+- **Documentation Consistency**: Fixed simple node docstring, updated error message examples with suggestions
+- **Development Infrastructure**: Implemented dev-only testing strategy with comprehensive validation tests
+- **Code Quality**: Simplified line break usage, enhanced parameter validation with edge case coverage
+
+### v0.3.0
 - **BREAKING**: Parameter names simplified for clarity (`switching_strategy` → `switch_strategy`, `midpoint` → `switch_step`, `boundary` → `switch_boundary`)
 - **BREAKING**: Strategy option renamed ("50% of lightning steps" → "50% of steps")
 - **Enhanced Validation**: Comprehensive edge case validation and error handling
