@@ -165,7 +165,17 @@ To test the nodes are properly loaded:
 
 ## Version History
 
-### v0.2.0 (Current)
+### v0.3.0 (Current)
+- **BREAKING**: Parameter names simplified for clarity (`switching_strategy` → `switch_strategy`, `midpoint` → `switch_step`, `boundary` → `switch_boundary`)
+- **BREAKING**: Strategy option renamed ("50% of lightning steps" → "50% of steps")
+- **Enhanced Validation**: Comprehensive edge case validation and error handling
+- **Logging Improvements**: Clean visual separators with bare logger for empty lines
+- **Code Refactoring**: Simplified internal variable naming and stage execution logic
+- **Bug Fixes**: Proper noise addition for Stage3-only scenarios
+- **UI Improvements**: Dynamic UI restricted to advanced node only, lightning_cfg removed from simple node
+- **File Organization**: Renamed workflow_example.json to example_workflow.json
+
+### v0.2.0
 - **BREAKING**: Node names swapped for better UX - Simple variant is now main "TripleKSampler"
 - **Enhanced Advanced Node**: Auto-calculation options for both base_steps and switch_step (-1 for auto)
 - **Lightning-start Awareness**: Auto-calculation accounts for lightning processing timing
