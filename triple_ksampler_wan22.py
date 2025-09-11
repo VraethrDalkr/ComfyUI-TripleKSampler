@@ -565,7 +565,10 @@ class TripleKSamplerWan22LightningAdvanced:
         # Stage 1: Base Denoising
         if skip_stage1:
             bare_logger.info("")
-            logger.info("Stage 1: Skipped (Lightning-only mode)")
+            if base_steps > 0:
+                logger.warning("Stage 1: Skipped (Lightning-only mode) - base_steps ignored")
+            else:
+                logger.info("Stage 1: Skipped (Lightning-only mode)")
             stage1_output = latent_image
         else:
             total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
