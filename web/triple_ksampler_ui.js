@@ -5,38 +5,37 @@ function findWidgetByName(node, name) {
     return node.widgets?.find(w => w.name === name);
 }
 
-// Helper function to toggle widget visibility by actually removing/adding widgets
-function toggleWidget(node, widget, show = false) {
-    if (!widget) {
-        console.log("TripleKSampler: toggleWidget called with null widget");
-        return;
+// Helper function to actually remove/add widgets from node
+function toggleWidget(node, widgetName, show = false) {
+    console.log("TripleKSampler: toggleWidget", widgetName, "show =", show);
+    
+    if (!node.widgets) return;
+    
+    const existingIndex = node.widgets.findIndex(w => w.name === widgetName);
+    const widgetExists = existingIndex !== -1;
+    
+    if (show && !widgetExists) {
+        // Need to add the widget back
+        const widgetConfig = node.hiddenWidgets?.[widgetName];
+        if (widgetConfig) {
+            console.log("TripleKSampler: Restoring widget", widgetName);
+            node.widgets.push(widgetConfig);
+            delete node.hiddenWidgets[widgetName];
+        }
+    } else if (!show && widgetExists) {
+        // Need to remove the widget
+        console.log("TripleKSampler: Hiding widget", widgetName);
+        const widget = node.widgets[existingIndex];
+        
+        // Store widget for later restoration
+        if (!node.hiddenWidgets) node.hiddenWidgets = {};
+        node.hiddenWidgets[widgetName] = widget;
+        
+        // Remove from widgets array
+        node.widgets.splice(existingIndex, 1);
     }
     
-    console.log("TripleKSampler: toggleWidget", widget.name, "show =", show, "current visible =", !widget.hidden);
-    
-    // Store the widget configuration if we haven't already
-    if (!widget.origConfig) {
-        widget.origConfig = {
-            type: widget.type,
-            options: widget.options,
-            value: widget.value,
-            computeSize: widget.computeSize
-        };
-    }
-    
-    if (show) {
-        // Show widget by ensuring it's not hidden and has proper type
-        widget.hidden = false;
-        widget.type = widget.origConfig.type;
-        widget.computeSize = widget.origConfig.computeSize;
-    } else {
-        // Hide widget by setting hidden flag and changing type
-        widget.hidden = true;
-        widget.type = "hidden";
-        widget.computeSize = () => [0, -4];
-    }
-    
-    console.log("TripleKSampler: toggleWidget result", widget.name, "hidden =", widget.hidden, "type =", widget.type);
+    console.log("TripleKSampler: Widget count after toggle:", node.widgets.length);
 }
 
 // Dynamic UI extension for TripleKSampler nodes
@@ -49,22 +48,9 @@ app.registerExtension({
             return;
         }
 
-        // Find widgets
+        // Find strategy widget
         const strategyWidget = findWidgetByName(node, "midpoint_strategy");
-        const midpointWidget = findWidgetByName(node, "midpoint");
-        const boundaryWidget = findWidgetByName(node, "boundary");
-        
         if (!strategyWidget) return;
-
-        // Store original widget types for restoration
-        if (midpointWidget && !midpointWidget.origType) {
-            midpointWidget.origType = midpointWidget.type;
-            midpointWidget.origComputeSize = midpointWidget.computeSize;
-        }
-        if (boundaryWidget && !boundaryWidget.origType) {
-            boundaryWidget.origType = boundaryWidget.type;
-            boundaryWidget.origComputeSize = boundaryWidget.computeSize;
-        }
 
         // Function to update widget visibility
         const updateWidgetVisibility = (strategy) => {
@@ -105,8 +91,8 @@ app.registerExtension({
             console.log("TripleKSampler: showMidpoint =", showMidpoint, "showBoundary =", showBoundary);
 
             // Apply visibility changes
-            toggleWidget(node, midpointWidget, showMidpoint);
-            toggleWidget(node, boundaryWidget, showBoundary);
+            toggleWidget(node, "midpoint", showMidpoint);
+            toggleWidget(node, "boundary", showBoundary);
 
             // Force complete node refresh
             node.setDirtyCanvas(true, true);
