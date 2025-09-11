@@ -363,7 +363,7 @@ class TripleKSamplerWan22LightningAdvanced:
             RuntimeError: If sampling fails.
         """
         if start_at_step >= end_at_step:
-            logger.info("%s: start_at_step >= end_at_step, skipping.", stage_name)
+            logger.warning("%s: start_at_step >= end_at_step, skipping.", stage_name)
             return (latent,)
 
         # Log stage info right before sampling to appear above progress bar
@@ -536,7 +536,7 @@ class TripleKSamplerWan22LightningAdvanced:
         stage3_add_noise = False  # Will be updated if both previous stages are skipped
 
         if lightning_start > switch_step_final:
-            logger.info("Model switching: Strategy bypassed (lightning_start > switch point).")
+            logger.warning("Model switching: Strategy bypassed (lightning_start > switch point).")
             skip_stage2 = True
             stage2_skip_reason = "lightning_start beyond switch point"
         else:
