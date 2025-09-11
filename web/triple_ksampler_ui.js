@@ -1,5 +1,25 @@
 import { app } from "../../scripts/app.js";
 
+// Helper function to find widget by name
+function findWidgetByName(node, name) {
+    return node.widgets?.find(w => w.name === name);
+}
+
+// Helper function to toggle widget visibility
+function toggleWidget(node, widget, show = false) {
+    if (!widget) return;
+    
+    widget.type = show ? widget.origType || widget.type : "hidden";
+    widget.computeSize = show ? 
+        (widget.origComputeSize || LiteGraph.LGraphNode.prototype.computeSize) : 
+        () => [0, -4];
+    
+    if (show && !widget.origType) {
+        widget.origType = widget.type;
+        widget.origComputeSize = widget.computeSize;
+    }
+}
+
 // Dynamic UI extension for TripleKSampler nodes
 app.registerExtension({
     name: "TripleKSampler.DynamicUI",
@@ -10,12 +30,22 @@ app.registerExtension({
             return;
         }
 
-        // Find the midpoint_strategy widget
-        const strategyWidget = node.widgets?.find(w => w.name === "midpoint_strategy");
-        const midpointWidget = node.widgets?.find(w => w.name === "midpoint");
-        const boundaryWidget = node.widgets?.find(w => w.name === "boundary");
+        // Find widgets
+        const strategyWidget = findWidgetByName(node, "midpoint_strategy");
+        const midpointWidget = findWidgetByName(node, "midpoint");
+        const boundaryWidget = findWidgetByName(node, "boundary");
         
         if (!strategyWidget) return;
+
+        // Store original widget types for restoration
+        if (midpointWidget && !midpointWidget.origType) {
+            midpointWidget.origType = midpointWidget.type;
+            midpointWidget.origComputeSize = midpointWidget.computeSize;
+        }
+        if (boundaryWidget && !boundaryWidget.origType) {
+            boundaryWidget.origType = boundaryWidget.type;
+            boundaryWidget.origComputeSize = boundaryWidget.computeSize;
+        }
 
         // Function to update widget visibility
         const updateWidgetVisibility = (strategy) => {
@@ -45,29 +75,27 @@ app.registerExtension({
                     showBoundary = true;
                     break;
                 default:
-                    // Default: show both
+                    // Default: show both for safety
                     showMidpoint = true;
                     showBoundary = true;
             }
 
-            // Apply visibility to widgets
-            if (midpointWidget) {
-                midpointWidget.type = showMidpoint ? "number" : "hidden";
-                midpointWidget.computeSize = showMidpoint ? midpointWidget.computeSize : () => [0, -4];
-            }
-            
-            if (boundaryWidget) {
-                boundaryWidget.type = showBoundary ? "number" : "hidden";
-                boundaryWidget.computeSize = showBoundary ? boundaryWidget.computeSize : () => [0, -4];
-            }
+            // Apply visibility changes
+            toggleWidget(node, midpointWidget, showMidpoint);
+            toggleWidget(node, boundaryWidget, showBoundary);
 
-            // Force node to redraw
+            // Update node size and force redraw
+            node.setSize(node.computeSize());
             node.setDirtyCanvas(true, true);
         };
 
         // Set up callback for strategy changes
-        strategyWidget.callback = (value) => {
+        const originalCallback = strategyWidget.callback;
+        strategyWidget.callback = function(value) {
             updateWidgetVisibility(value);
+            if (originalCallback) {
+                originalCallback.apply(this, arguments);
+            }
         };
 
         // Apply initial visibility based on default value
