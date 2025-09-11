@@ -164,6 +164,15 @@ class TripleKSamplerWan22LightningAdvanced:
                         "tooltip": "Strategy for switching between lightning high and low models."
                     }
                 ),
+                "midpoint": (
+                    "INT",
+                    {
+                        "default": -1,
+                        "min": -1,
+                        "max": 99,
+                        "tooltip": "Manual step to switch from high-noise to low-noise model. Use -1 for auto-calculation."
+                    }
+                ),
                 "boundary": (
                     "FLOAT",
                     {
@@ -175,15 +184,6 @@ class TripleKSamplerWan22LightningAdvanced:
                             "Boundary for sigma-based model switching. "
                             "Recommended 0.875 for T2V, 0.900 for I2V."
                         )
-                    }
-                ),
-                "midpoint": (
-                    "INT",
-                    {
-                        "default": -1,
-                        "min": -1,
-                        "max": 99,
-                        "tooltip": "Manual step to switch from high-noise to low-noise model. Use -1 for auto-calculation."
                     }
                 ),
             }
