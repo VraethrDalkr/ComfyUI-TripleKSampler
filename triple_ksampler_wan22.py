@@ -363,13 +363,10 @@ class TripleKSamplerWan22LightningAdvanced:
             RuntimeError: If sampling fails.
         """
         if start_at_step >= end_at_step:
-            logger.info("%s: start_at_step >= end_at_step, skipping.", stage_name)
-            return (latent,)
+            raise ValueError(f"{stage_name}: start_at_step ({start_at_step}) >= end_at_step ({end_at_step}). Check your step configuration - this indicates invalid sampling range.")
 
         # Log stage info right before sampling to appear above progress bar
         if stage_info:
-            # Add visual separator before stage message
-            bare_logger.info("")
             stage_type = stage_name.replace("Stage 1", "Base denoising").replace("Stage 2", "Lightning high model").replace("Stage 3", "Lightning low model")
             logger.info("%s: %s - %s", stage_name, stage_type, stage_info)
 
@@ -462,14 +459,12 @@ class TripleKSamplerWan22LightningAdvanced:
             if switch_step >= lightning_steps:
                 raise ValueError(f"switch_step ({switch_step}) must be < lightning_steps ({lightning_steps}). Use a smaller value or different strategy.")
             if switch_step < lightning_start:
-                raise ValueError(f"switch_step ({switch_step}) cannot be less than lightning_start ({lightning_start}). The high-noise model needs at least some steps before switching.")
+                raise ValueError(f"switch_step ({switch_step}) cannot be less than lightning_start ({lightning_start}). The high-noise model needs at least some steps before switching. If you want low-noise only, set lightning_start=0 as well.")
         
         # Auto-calculate base_steps if requested
         if base_steps == -1:
             multiplier = math.ceil(MIN_TOTAL_STEPS / lightning_steps)
             base_steps = lightning_start * multiplier
-            # Add initial visual separator before first log message
-            bare_logger.info("")
             logger.info("Auto-calculated base_steps = %d", base_steps)
         
         # Validate base_steps after potential auto-calculation
@@ -536,9 +531,7 @@ class TripleKSamplerWan22LightningAdvanced:
         stage3_add_noise = False  # Will be updated if both previous stages are skipped
 
         if lightning_start > switch_step_final:
-            logger.info("Model switching: Strategy bypassed (lightning_start > switch point).")
-            skip_stage2 = True
-            stage2_skip_reason = "lightning_start beyond switch point"
+            raise ValueError(f"lightning_start ({lightning_start}) cannot be greater than switch_step ({switch_step_final}). Either decrease lightning_start or increase switch_step, or use a different switching strategy.")
         else:
             # Log switching strategy
             if switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
@@ -564,6 +557,8 @@ class TripleKSamplerWan22LightningAdvanced:
 
         # Stage 1: Base Denoising
         if skip_stage1:
+            if base_steps > 0:
+                raise ValueError(f"base_steps ({base_steps}) is ignored when lightning_start=0. Set base_steps=0 or base_steps=-1 for Lightning-only mode, or increase lightning_start to use base denoising.")
             bare_logger.info("")
             logger.info("Stage 1: Skipped (Lightning-only mode)")
             stage1_output = latent_image
@@ -829,6 +824,9 @@ class TripleKSamplerWan22Lightning:
 
         Returns:
             Tuple containing final latent dictionary.
+
+        Raises:
+            ValueError: If parameters are invalid.
         """
         # Fixed parameters for simplified interface
         lightning_start = 1
@@ -839,8 +837,6 @@ class TripleKSamplerWan22Lightning:
             total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
             total_base_steps = max(total_base_steps, base_steps)
             pct_end = self._calculate_percentage(base_steps, total_base_steps)
-            # Add initial visual separator before first log message
-            bare_logger.info("")
             logger.info(
                 "Simple node: base_steps = %d (auto-computed). "
                 "Stage 1 will denoise approx. 0%%–%.1f%%",
