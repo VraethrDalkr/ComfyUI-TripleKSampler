@@ -7,7 +7,12 @@ function findWidgetByName(node, name) {
 
 // Helper function to toggle widget visibility
 function toggleWidget(node, widget, show = false) {
-    if (!widget) return;
+    if (!widget) {
+        console.log("TripleKSampler: toggleWidget called with null widget");
+        return;
+    }
+    
+    console.log("TripleKSampler: toggleWidget", widget.name, "show =", show, "current type =", widget.type);
     
     widget.type = show ? widget.origType || widget.type : "hidden";
     widget.computeSize = show ? 
@@ -18,6 +23,8 @@ function toggleWidget(node, widget, show = false) {
         widget.origType = widget.type;
         widget.origComputeSize = widget.computeSize;
     }
+    
+    console.log("TripleKSampler: toggleWidget result", widget.name, "new type =", widget.type);
 }
 
 // Dynamic UI extension for TripleKSampler nodes
@@ -49,6 +56,8 @@ app.registerExtension({
 
         // Function to update widget visibility
         const updateWidgetVisibility = (strategy) => {
+            console.log("TripleKSampler: Updating visibility for strategy:", strategy);
+            
             let showMidpoint = false;
             let showBoundary = false;
 
@@ -78,7 +87,10 @@ app.registerExtension({
                     // Default: show both for safety
                     showMidpoint = true;
                     showBoundary = true;
+                    console.log("TripleKSampler: Unknown strategy, showing both widgets");
             }
+
+            console.log("TripleKSampler: showMidpoint =", showMidpoint, "showBoundary =", showBoundary);
 
             // Apply visibility changes
             toggleWidget(node, midpointWidget, showMidpoint);
@@ -99,6 +111,9 @@ app.registerExtension({
         };
 
         // Apply initial visibility based on default value
-        updateWidgetVisibility(strategyWidget.value);
+        setTimeout(() => {
+            console.log("TripleKSampler: Initial strategy value:", strategyWidget.value);
+            updateWidgetVisibility(strategyWidget.value);
+        }, 100);
     }
 });
