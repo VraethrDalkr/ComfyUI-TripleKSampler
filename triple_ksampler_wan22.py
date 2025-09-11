@@ -102,7 +102,7 @@ class TripleKSamplerWan22LightningAdvanced:
                         "tooltip": "Random seed for noise generation."
                     }
                 ),
-                "shift": (
+                "sigma_shift": (
                     "FLOAT",
                     {
                         "default": 5.0,
@@ -110,6 +110,15 @@ class TripleKSamplerWan22LightningAdvanced:
                         "max": 100.0,
                         "step": 0.01,
                         "tooltip": "Sigma shift applied to model sampling (default 5.0)."
+                    }
+                ),
+                "base_steps": (
+                    "INT",
+                    {
+                        "default": -1,
+                        "min": -1,
+                        "max": 100,
+                        "tooltip": "Number of base (Stage 1) steps. Use -1 for auto-calculation based on lightning_start."
                     }
                 ),
                 "base_cfg": (
@@ -120,15 +129,6 @@ class TripleKSamplerWan22LightningAdvanced:
                         "max": 100.0,
                         "step": 0.1,
                         "tooltip": "CFG scale for Stage 1."
-                    }
-                ),
-                "base_steps": (
-                    "INT",
-                    {
-                        "default": 4,
-                        "min": -1,
-                        "max": 100,
-                        "tooltip": "Number of base (Stage 1) steps. Use -1 for auto-calculation based on lightning_start."
                     }
                 ),
                 "lightning_start": (
@@ -149,6 +149,16 @@ class TripleKSamplerWan22LightningAdvanced:
                         "tooltip": "Total steps for lightning stages."
                     }
                 ),
+                "lightning_cfg": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 100.0,
+                        "step": 0.1,
+                        "tooltip": "CFG scale for Stage 2 and Stage 3 (lightning stages)."
+                    }
+                ),
                 "sampler_name": (
                     comfy.samplers.KSampler.SAMPLERS,
                     {"tooltip": "Sampler to use."}
@@ -164,6 +174,8 @@ class TripleKSamplerWan22LightningAdvanced:
                         "tooltip": "Strategy for switching between lightning high and low models."
                     }
                 ),
+            },
+            "optional": {
                 "midpoint": (
                     "INT",
                     {
@@ -220,21 +232,21 @@ class TripleKSamplerWan22LightningAdvanced:
         """
         return float(value)
 
-    def _calculate_percentage(self, numerator: float, denominator: float) -> int:
+    def _calculate_percentage(self, numerator: float, denominator: float) -> float:
         """
-        Calculate percentage safely, avoiding division by zero.
+        Calculate percentage with single digit precision for logging.
 
         Args:
             numerator: Numerator value.
             denominator: Denominator value.
 
         Returns:
-            Integer percentage between 0 and 100.
+            Float percentage between 0.0 and 100.0 with one decimal place.
         """
         if denominator == 0:
-            return 0
-        percentage = int(round((float(numerator) / float(denominator)) * 100.0))
-        return max(0, min(100, percentage))
+            return 0.0
+        percentage = (float(numerator) / float(denominator)) * 100.0
+        return round(max(0.0, min(100.0, percentage)), 1)
 
     def _format_stage_range(self, start: int, end: int, total: int) -> str:
         """
@@ -255,7 +267,7 @@ class TripleKSamplerWan22LightningAdvanced:
         pct_start = self._calculate_percentage(start_safe, total_safe)
         pct_end = self._calculate_percentage(end_safe, total_safe)
         
-        return f"steps {start_safe}-{end_safe} of {total_safe} (denoising {pct_start}%–{pct_end}%)"
+        return f"steps {start_safe}-{end_safe} of {total_safe} (denoising {pct_start:.1f}%–{pct_end:.1f}%)"
 
     def _compute_boundary_switching_step(
         self,
@@ -378,16 +390,17 @@ class TripleKSamplerWan22LightningAdvanced:
         negative: Any,
         latent_image: Dict[str, torch.Tensor],
         seed: int,
-        shift: float,
+        sigma_shift: float,
         base_steps: int,
         base_cfg: float,
         lightning_start: int,
         lightning_steps: int,
+        lightning_cfg: float,
         sampler_name: str,
         scheduler: str,
         midpoint_strategy: str,
-        boundary: float,
-        midpoint: int
+        boundary: float = 0.875,
+        midpoint: int = -1
     ) -> Tuple[Dict[str, torch.Tensor]]:
         """
         Execute triple-stage cascade sampling with comprehensive logging.
@@ -400,16 +413,17 @@ class TripleKSamplerWan22LightningAdvanced:
             negative: Negative prompt conditioning.
             latent_image: Input latent image.
             seed: Random seed.
-            shift: Sigma shift value.
+            sigma_shift: Sigma shift value.
             base_steps: Number of base denoising steps (-1 for auto-calculation).
             base_cfg: CFG scale for base stage.
             lightning_start: Starting step in lightning schedule.
             lightning_steps: Total lightning steps.
+            lightning_cfg: CFG scale for lightning stages (Stage 2 and 3).
             sampler_name: Sampler algorithm.
             scheduler: Noise scheduler.
             midpoint_strategy: Strategy for lightning model switching.
-            boundary: Sigma boundary for manual boundary strategy.
-            midpoint: Manual midpoint for manual midpoint strategy.
+            boundary: Sigma boundary for manual boundary strategy (optional).
+            midpoint: Manual midpoint for manual midpoint strategy (optional).
 
         Returns:
             Tuple containing final latent dictionary.
@@ -435,7 +449,7 @@ class TripleKSamplerWan22LightningAdvanced:
 
         # Clone and patch models with sigma shift
         patcher = self._get_model_patcher()
-        shift_value = self._canonicalize_shift(shift)
+        shift_value = self._canonicalize_shift(sigma_shift)
         
         patched_high = patcher.patch(high_model, shift_value)[0]
         patched_high_lx2v = patcher.patch(high_model_lx2v, shift_value)[0]
@@ -541,7 +555,7 @@ class TripleKSamplerWan22LightningAdvanced:
                 latent=latent_after_stage1,
                 seed=seed,
                 steps=lightning_steps,
-                cfg=1.0,
+                cfg=lightning_cfg,
                 sampler_name=sampler_name,
                 scheduler=scheduler,
                 start_at_step=lightning_start,
@@ -633,7 +647,7 @@ class TripleKSamplerWan22Lightning:
                         "tooltip": "Random seed for noise generation."
                     }
                 ),
-                "shift": (
+                "sigma_shift": (
                     "FLOAT",
                     {
                         "default": 5.0,
@@ -660,6 +674,16 @@ class TripleKSamplerWan22Lightning:
                         "min": 2,
                         "max": 100,
                         "tooltip": "Total steps for lightning stages."
+                    }
+                ),
+                "lightning_cfg": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 100.0,
+                        "step": 0.1,
+                        "tooltip": "CFG scale for lightning stages (Stage 2 and 3)."
                     }
                 ),
                 "sampler_name": (
@@ -706,21 +730,21 @@ class TripleKSamplerWan22Lightning:
         required = math.ceil(MIN_TOTAL_STEPS / float(lightning_steps))
         return max(1, int(required))
 
-    def _calculate_percentage(self, numerator: float, denominator: float) -> int:
+    def _calculate_percentage(self, numerator: float, denominator: float) -> float:
         """
-        Calculate percentage safely, avoiding division by zero.
+        Calculate percentage with single digit precision for logging.
 
         Args:
             numerator: Numerator value.
             denominator: Denominator value.
 
         Returns:
-            Integer percentage between 0 and 100.
+            Float percentage between 0.0 and 100.0 with one decimal place.
         """
         if denominator == 0:
-            return 0
-        percentage = int(round((float(numerator) / float(denominator)) * 100.0))
-        return max(0, min(100, percentage))
+            return 0.0
+        percentage = (float(numerator) / float(denominator)) * 100.0
+        return round(max(0.0, min(100.0, percentage)), 1)
 
     def sample(
         self,
@@ -731,9 +755,10 @@ class TripleKSamplerWan22Lightning:
         negative: Any,
         latent_image: Dict[str, torch.Tensor],
         seed: int,
-        shift: float,
+        sigma_shift: float,
         base_cfg: float,
         lightning_steps: int,
+        lightning_cfg: float,
         sampler_name: str,
         scheduler: str,
         midpoint_strategy: str
@@ -749,9 +774,10 @@ class TripleKSamplerWan22Lightning:
             negative: Negative prompt conditioning.
             latent_image: Input latent image.
             seed: Random seed.
-            shift: Sigma shift value.
+            sigma_shift: Sigma shift value.
             base_cfg: CFG scale for base stage.
             lightning_steps: Total lightning steps.
+            lightning_cfg: CFG scale for lightning stages.
             sampler_name: Sampler algorithm.
             scheduler: Noise scheduler.
             midpoint_strategy: Strategy for lightning model switching.
@@ -784,11 +810,12 @@ class TripleKSamplerWan22Lightning:
             negative=negative,
             latent_image=latent_image,
             seed=seed,
-            shift=shift,
+            sigma_shift=sigma_shift,
             base_steps=base_steps,
             base_cfg=base_cfg,
             lightning_start=lightning_start,
             lightning_steps=lightning_steps,
+            lightning_cfg=lightning_cfg,
             sampler_name=sampler_name,
             scheduler=scheduler,
             midpoint_strategy=midpoint_strategy,

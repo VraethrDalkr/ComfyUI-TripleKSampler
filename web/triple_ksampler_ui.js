@@ -7,8 +7,6 @@ function findWidgetByName(node, name) {
 
 // Helper function to actually remove/add widgets from node
 function toggleWidget(node, widgetName, show = false) {
-    console.log("TripleKSampler: toggleWidget", widgetName, "show =", show);
-    
     if (!node.widgets) return;
     
     const existingIndex = node.widgets.findIndex(w => w.name === widgetName);
@@ -18,13 +16,11 @@ function toggleWidget(node, widgetName, show = false) {
         // Need to add the widget back
         const widgetConfig = node.hiddenWidgets?.[widgetName];
         if (widgetConfig) {
-            console.log("TripleKSampler: Restoring widget", widgetName);
             node.widgets.push(widgetConfig);
             delete node.hiddenWidgets[widgetName];
         }
     } else if (!show && widgetExists) {
         // Need to remove the widget
-        console.log("TripleKSampler: Hiding widget", widgetName);
         const widget = node.widgets[existingIndex];
         
         // Store widget for later restoration
@@ -34,8 +30,6 @@ function toggleWidget(node, widgetName, show = false) {
         // Remove from widgets array
         node.widgets.splice(existingIndex, 1);
     }
-    
-    console.log("TripleKSampler: Widget count after toggle:", node.widgets.length);
 }
 
 // Dynamic UI extension for TripleKSampler nodes
@@ -54,8 +48,6 @@ app.registerExtension({
 
         // Function to update widget visibility
         const updateWidgetVisibility = (strategy) => {
-            console.log("TripleKSampler: Updating visibility for strategy:", strategy);
-            
             let showMidpoint = false;
             let showBoundary = false;
 
@@ -85,10 +77,7 @@ app.registerExtension({
                     // Default: show both for safety
                     showMidpoint = true;
                     showBoundary = true;
-                    console.log("TripleKSampler: Unknown strategy, showing both widgets");
             }
-
-            console.log("TripleKSampler: showMidpoint =", showMidpoint, "showBoundary =", showBoundary);
 
             // Apply visibility changes
             toggleWidget(node, "midpoint", showMidpoint);
@@ -120,7 +109,6 @@ app.registerExtension({
 
         // Apply initial visibility based on default value
         setTimeout(() => {
-            console.log("TripleKSampler: Initial strategy value:", strategyWidget.value);
             updateWidgetVisibility(strategyWidget.value);
         }, 100);
     }
