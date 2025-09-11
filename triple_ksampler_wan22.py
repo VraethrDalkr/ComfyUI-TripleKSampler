@@ -35,6 +35,15 @@ if not logger.handlers:
 logger.propagate = False
 logger.setLevel(logging.INFO)
 
+# Configure bare logger for clean empty line separators
+bare_logger = logging.getLogger("TripleKSampler.separator")
+if not bare_logger.handlers:
+    bare_handler = logging.StreamHandler()
+    bare_handler.setFormatter(logging.Formatter(""))
+    bare_logger.addHandler(bare_handler)
+bare_logger.propagate = False
+bare_logger.setLevel(logging.INFO)
+
 
 class TripleKSamplerWan22LightningAdvanced:
     """
@@ -359,6 +368,8 @@ class TripleKSamplerWan22LightningAdvanced:
 
         # Log stage info right before sampling to appear above progress bar
         if stage_info:
+            # Add visual separator before stage message
+            bare_logger.info("")
             stage_type = stage_name.replace("Stage 1", "Base denoising").replace("Stage 2", "Lightning high model").replace("Stage 3", "Lightning low model")
             logger.info("%s: %s - %s", stage_name, stage_type, stage_info)
 
@@ -385,10 +396,6 @@ class TripleKSamplerWan22LightningAdvanced:
             )
         except Exception as exc:
             raise RuntimeError(f"{stage_name}: sampling failed.") from exc
-        
-        # Add visual separator after sampling stage for better log readability
-        if stage_info:
-            logger.info("")
             
         return result
 
@@ -448,6 +455,15 @@ class TripleKSamplerWan22LightningAdvanced:
         if not (0 <= lightning_start < lightning_steps):
             raise ValueError("lightning_start must be within [0, lightning_steps-1].")
         
+        # Validate switch_step bounds for manual strategy
+        if switch_strategy == "Manual switch step" and switch_step != -1:
+            if switch_step < 0:
+                raise ValueError(f"switch_step ({switch_step}) must be >= 0")
+            if switch_step >= lightning_steps:
+                raise ValueError(f"switch_step ({switch_step}) must be < lightning_steps ({lightning_steps}). Use a smaller value or different strategy.")
+            if switch_step < lightning_start:
+                raise ValueError(f"switch_step ({switch_step}) cannot be less than lightning_start ({lightning_start}). The high-noise model needs at least some steps before switching.")
+        
         # Auto-calculate base_steps if requested
         if base_steps == -1:
             multiplier = math.ceil(MIN_TOTAL_STEPS / lightning_steps)
@@ -457,6 +473,26 @@ class TripleKSamplerWan22LightningAdvanced:
         # Validate base_steps after potential auto-calculation
         if lightning_start > 0 and base_steps < 1:
             raise ValueError("base_steps must be >= 1 when lightning_start > 0.")
+        
+        # Validate base_steps=0 edge case
+        if base_steps == 0 and lightning_start != 0:
+            raise ValueError("base_steps = 0 is only allowed when lightning_start = 0 (Stage1 skip mode)")
+        
+        # Validate consistency for Stage1+Stage2 skip scenario
+        if lightning_start == 0:
+            # Pre-calculate switch point to check for Stage1+Stage2 skip
+            temp_switch_step = None
+            if switch_strategy == "Manual switch step":
+                temp_switch_step = switch_step if switch_step != -1 else lightning_steps // 2
+            elif switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
+                # We'll calculate this properly later, but for validation assume reasonable values
+                temp_switch_step = 1  # Assume non-zero for boundary strategies
+            else:  # "50% of steps" strategy
+                temp_switch_step = math.ceil(lightning_steps / 2)
+            
+            # Check for Stage1+Stage2 skip scenario
+            if temp_switch_step == 0 and base_steps > 0:
+                raise ValueError("When skipping both Stage1 and Stage2 (lightning_start=0, switch_step=0), base_steps must be -1 or 0")
 
         # Clone and patch models with sigma shift
         patcher = self._get_model_patcher()
@@ -468,8 +504,8 @@ class TripleKSamplerWan22LightningAdvanced:
 
         # Determine model switching strategy based on dropdown selection
         if switch_strategy == "Manual switch step":
-            lightning_midpoint = switch_step if switch_step != -1 else lightning_steps // 2
-            logger.info("Using manual switch step = %d", lightning_midpoint)
+            switch_step_calculated = switch_step if switch_step != -1 else lightning_steps // 2
+            logger.info("Using manual switch step = %d", switch_step_calculated)
         elif switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
             # Select appropriate boundary value
             if switch_strategy == "T2V boundary":
@@ -480,22 +516,25 @@ class TripleKSamplerWan22LightningAdvanced:
                 boundary_value = switch_boundary
             
             sampling = patched_high_lx2v.get_model_object("model_sampling")
-            lightning_midpoint = self._compute_boundary_switching_step(
+            switch_step_calculated = self._compute_boundary_switching_step(
                 sampling, scheduler, lightning_steps, boundary_value
             )
         else:  # "50% of steps" strategy
-            lightning_midpoint = math.ceil(lightning_steps / 2)
-            if lightning_midpoint >= lightning_steps:
-                lightning_midpoint = lightning_steps - 1
+            switch_step_calculated = math.ceil(lightning_steps / 2)
 
-        lightning_midpoint_int = int(lightning_midpoint)
+        switch_step_final = int(switch_step_calculated)
 
         # Determine stage execution logic
         skip_stage1 = (lightning_start == 0)
         skip_stage2 = False
         stage2_skip_reason = ""
+        
+        # Determine noise addition for each stage (first stage to run always adds noise)
+        stage1_add_noise = True  # Always adds noise when it runs
+        stage2_add_noise = skip_stage1  # Adds noise if it's the first stage to run
+        stage3_add_noise = False  # Will be updated if both previous stages are skipped
 
-        if lightning_start > lightning_midpoint_int:
+        if lightning_start > switch_step_final:
             logger.info("Model switching: Strategy bypassed (lightning_start > switch point).")
             skip_stage2 = True
             stage2_skip_reason = "lightning_start beyond switch point"
@@ -507,29 +546,36 @@ class TripleKSamplerWan22LightningAdvanced:
                 )
                 logger.info(
                     "Model switching: %s (boundary = %s) → switch at step %d of %d",
-                    switch_strategy, boundary_value, lightning_midpoint_int, lightning_steps
+                    switch_strategy, boundary_value, switch_step_final, lightning_steps
                 )
             else:
                 logger.info(
                     "Model switching: %s → switch at step %d of %d",
-                    switch_strategy, lightning_midpoint_int, lightning_steps
+                    switch_strategy, switch_step_final, lightning_steps
                 )
 
-            if lightning_start == lightning_midpoint_int:
+            if lightning_start == switch_step_final:
                 skip_stage2 = True
                 stage2_skip_reason = "lightning_start equals switch point"
+
+        # Update stage3 noise logic and add special case warnings
+        stage3_add_noise = skip_stage1 and skip_stage2
+        
+        if lightning_start == 0 and switch_step_final == 0:
+            logger.warning("⚠️  Stage1 and Stage2 skipped - running low-noise lightning only")
+        elif lightning_start == 0:
+            logger.info("Stage1 skipped - starting with lightning models")
 
         # Stage 1: Base Denoising
         if skip_stage1:
             logger.info("Stage 1: Skipped (Lightning-only mode).")
-            latent_after_stage1 = latent_image
-            add_noise_for_stage2 = True
+            stage1_output = latent_image
         else:
             total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
             total_base_steps = max(total_base_steps, base_steps)
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
             
-            latent_stage1 = self._run_sampling_stage(
+            stage1_result = self._run_sampling_stage(
                 model=patched_high,
                 positive=positive,
                 negative=negative,
@@ -541,51 +587,50 @@ class TripleKSamplerWan22LightningAdvanced:
                 scheduler=scheduler,
                 start_at_step=0,
                 end_at_step=base_steps,
-                add_noise=True,
+                add_noise=stage1_add_noise,
                 return_with_leftover_noise=True,
                 stage_name="Stage 1",
                 stage_info=stage1_info
             )
-            latent_after_stage1 = latent_stage1[0]
-            add_noise_for_stage2 = False
+            stage1_output = stage1_result[0]
 
         # Stage 2: Lightning High Model
         if skip_stage2:
             logger.info("Stage 2: Skipped (%s).", stage2_skip_reason)
-            latent_for_stage3 = latent_after_stage1
+            stage2_output = stage1_output
         else:
             stage2_info = self._format_stage_range(
-                lightning_start, lightning_midpoint_int, lightning_steps
+                lightning_start, switch_step_final, lightning_steps
             )
             
-            latent_stage2 = self._run_sampling_stage(
+            stage2_result = self._run_sampling_stage(
                 model=patched_high_lx2v,
                 positive=positive,
                 negative=negative,
-                latent=latent_after_stage1,
+                latent=stage1_output,
                 seed=seed,
                 steps=lightning_steps,
                 cfg=lightning_cfg,
                 sampler_name=sampler_name,
                 scheduler=scheduler,
                 start_at_step=lightning_start,
-                end_at_step=lightning_midpoint_int,
-                add_noise=add_noise_for_stage2,
+                end_at_step=switch_step_final,
+                add_noise=stage2_add_noise,
                 return_with_leftover_noise=True,
                 stage_name="Stage 2",
                 stage_info=stage2_info
             )
-            latent_for_stage3 = latent_stage2[0]
+            stage2_output = stage2_result[0]
 
         # Stage 3: Lightning Low Model
-        stage3_start = max(lightning_start, lightning_midpoint_int)
+        stage3_start = max(lightning_start, switch_step_final)
         stage3_info = self._format_stage_range(stage3_start, lightning_steps, lightning_steps)
         
-        latent_final = self._run_sampling_stage(
+        stage3_result = self._run_sampling_stage(
             model=patched_low_lx2v,
             positive=positive,
             negative=negative,
-            latent=latent_for_stage3,
+            latent=stage2_output,
             seed=seed + 1,  # Offset seed for final stage
             steps=lightning_steps,
             cfg=1.0,
@@ -593,13 +638,13 @@ class TripleKSamplerWan22LightningAdvanced:
             scheduler=scheduler,
             start_at_step=stage3_start,
             end_at_step=lightning_steps,
-            add_noise=False,
+            add_noise=stage3_add_noise,
             return_with_leftover_noise=False,
             stage_name="Stage 3",
             stage_info=stage3_info
         )
 
-        return latent_final
+        return stage3_result
 
 
 class TripleKSamplerWan22Lightning:
