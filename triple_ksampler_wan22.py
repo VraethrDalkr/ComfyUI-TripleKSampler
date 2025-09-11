@@ -733,16 +733,6 @@ class TripleKSamplerWan22Lightning:
                         "tooltip": "Total steps for lightning stages."
                     }
                 ),
-                "lightning_cfg": (
-                    "FLOAT",
-                    {
-                        "default": 1.0,
-                        "min": 0.0,
-                        "max": 100.0,
-                        "step": 0.1,
-                        "tooltip": "CFG scale for lightning stages (Stage 2 and 3)."
-                    }
-                ),
                 "sampler_name": (
                     comfy.samplers.KSampler.SAMPLERS,
                     {"tooltip": "Sampler to use."}
@@ -815,7 +805,6 @@ class TripleKSamplerWan22Lightning:
         sigma_shift: float,
         base_cfg: float,
         lightning_steps: int,
-        lightning_cfg: float,
         sampler_name: str,
         scheduler: str,
         switch_strategy: str
@@ -834,7 +823,6 @@ class TripleKSamplerWan22Lightning:
             sigma_shift: Sigma shift value.
             base_cfg: CFG scale for base stage.
             lightning_steps: Total lightning steps.
-            lightning_cfg: CFG scale for lightning stages.
             sampler_name: Sampler algorithm.
             scheduler: Noise scheduler.
             switch_strategy: Strategy for lightning model switching.
@@ -874,7 +862,7 @@ class TripleKSamplerWan22Lightning:
             base_cfg=base_cfg,
             lightning_start=lightning_start,
             lightning_steps=lightning_steps,
-            lightning_cfg=lightning_cfg,
+            lightning_cfg=1.0,  # Fixed CFG for lightning stages in simple node
             sampler_name=sampler_name,
             scheduler=scheduler,
             switch_strategy=switch_strategy,
