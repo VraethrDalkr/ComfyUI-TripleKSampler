@@ -5,32 +5,38 @@ function findWidgetByName(node, name) {
     return node.widgets?.find(w => w.name === name);
 }
 
-// Helper function to toggle widget visibility
+// Helper function to toggle widget visibility by actually removing/adding widgets
 function toggleWidget(node, widget, show = false) {
     if (!widget) {
         console.log("TripleKSampler: toggleWidget called with null widget");
         return;
     }
     
-    console.log("TripleKSampler: toggleWidget", widget.name, "show =", show, "current type =", widget.type);
+    console.log("TripleKSampler: toggleWidget", widget.name, "show =", show, "current visible =", !widget.hidden);
     
-    widget.type = show ? (widget.origType || widget.type) : "hidden";
+    // Store the widget configuration if we haven't already
+    if (!widget.origConfig) {
+        widget.origConfig = {
+            type: widget.type,
+            options: widget.options,
+            value: widget.value,
+            computeSize: widget.computeSize
+        };
+    }
     
     if (show) {
-        if (widget.origComputeSize) {
-            widget.computeSize = widget.origComputeSize;
-        }
-        // If no original computeSize, leave the current one
+        // Show widget by ensuring it's not hidden and has proper type
+        widget.hidden = false;
+        widget.type = widget.origConfig.type;
+        widget.computeSize = widget.origConfig.computeSize;
     } else {
+        // Hide widget by setting hidden flag and changing type
+        widget.hidden = true;
+        widget.type = "hidden";
         widget.computeSize = () => [0, -4];
     }
     
-    if (show && !widget.origType) {
-        widget.origType = widget.type;
-        widget.origComputeSize = widget.computeSize;
-    }
-    
-    console.log("TripleKSampler: toggleWidget result", widget.name, "new type =", widget.type);
+    console.log("TripleKSampler: toggleWidget result", widget.name, "hidden =", widget.hidden, "type =", widget.type);
 }
 
 // Dynamic UI extension for TripleKSampler nodes
@@ -102,11 +108,19 @@ app.registerExtension({
             toggleWidget(node, midpointWidget, showMidpoint);
             toggleWidget(node, boundaryWidget, showBoundary);
 
-            // Force node redraw - ComfyUI will handle size automatically
+            // Force complete node refresh
             node.setDirtyCanvas(true, true);
             if (node.graph && node.graph.canvas) {
                 node.graph.canvas.setDirty(true, true);
             }
+            
+            // Force widget list refresh by triggering resize
+            setTimeout(() => {
+                if (node.onResize) {
+                    node.onResize(node.size);
+                }
+                node.setDirtyCanvas(true, true);
+            }, 10);
         };
 
         // Set up callback for strategy changes
