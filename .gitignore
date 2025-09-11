@@ -57,3 +57,10 @@ output/
 
 # Development files
 CLAUDE.md
+
+# Testing
+tests/
+pytest.ini
+.pytest_cache/
+.coverage
+htmlcov/

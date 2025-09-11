@@ -824,6 +824,9 @@ class TripleKSamplerWan22Lightning:
 
         Returns:
             Tuple containing final latent dictionary.
+
+        Raises:
+            ValueError: If parameters are invalid.
         """
         # Fixed parameters for simplified interface
         lightning_start = 1
