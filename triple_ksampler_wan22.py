@@ -23,7 +23,7 @@ import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 
-from .constants import MIN_TOTAL_STEPS, ENABLE_CONSISTENCY_CHECK, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V
+from .constants import MIN_TOTAL_STEPS, ENABLE_CONSISTENCY_CHECK, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V, USE_EFFICIENT_TOTAL_STEPS
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -364,7 +364,8 @@ class TripleKSamplerWan22LightningAdvanced:
         """
         if start_at_step >= end_at_step:
             raise ValueError(f"{stage_name}: start_at_step ({start_at_step}) >= end_at_step ({end_at_step}). Check your step configuration - this indicates invalid sampling range.")
-
+        
+        # Add visual separator before all sampling begins
         bare_logger.info("")
 
         # Log stage info right before sampling to appear above progress bar
@@ -462,14 +463,19 @@ class TripleKSamplerWan22LightningAdvanced:
                 raise ValueError(f"switch_step ({switch_step}) must be < lightning_steps ({lightning_steps}). Use a smaller value or different strategy.")
             if switch_step < lightning_start:
                 raise ValueError(f"switch_step ({switch_step}) cannot be less than lightning_start ({lightning_start}). The high-noise model needs at least some steps before switching. If you want low-noise only, set lightning_start=0 as well.")
-        
-        bare_logger.info("")
 
         # Auto-calculate base_steps if requested
         if base_steps == -1:
-            multiplier = math.ceil(MIN_TOTAL_STEPS / lightning_steps)
-            base_steps = lightning_start * multiplier
-            logger.info("Auto-calculated base_steps = %d", base_steps)
+            if USE_EFFICIENT_TOTAL_STEPS:
+                # Experimental: Efficient calculation with fixed total steps
+                multiplier = lightning_start / lightning_steps
+                base_steps = math.ceil(MIN_TOTAL_STEPS * multiplier)
+                logger.info("Auto-calculated base_steps = %d (efficient method)", base_steps)
+            else:
+                # Current: Safe calculation with no overlap
+                multiplier = math.ceil(MIN_TOTAL_STEPS / lightning_steps)
+                base_steps = lightning_start * multiplier
+                logger.info("Auto-calculated base_steps = %d (safe method)", base_steps)
         
         # Validate base_steps after potential auto-calculation
         if lightning_start > 0 and base_steps < 1:
@@ -567,8 +573,13 @@ class TripleKSamplerWan22LightningAdvanced:
             logger.info("Stage 1: Skipped (Lightning-only mode)")
             stage1_output = latent_image
         else:
-            total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
-            total_base_steps = max(total_base_steps, base_steps)
+            if USE_EFFICIENT_TOTAL_STEPS:
+                # Experimental: Fixed total steps (faster, may have overlap)
+                total_base_steps = MIN_TOTAL_STEPS
+            else:
+                # Current: Safe calculation (no overlap, more steps)
+                total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
+                total_base_steps = max(total_base_steps, base_steps)
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
             
             stage1_result = self._run_sampling_stage(
@@ -761,9 +772,7 @@ class TripleKSamplerWan22Lightning:
 
     def _compute_base_steps(self, lightning_steps: int) -> int:
         """
-        Compute base_steps to ensure base_steps * lightning_steps >= _MIN_TOTAL_STEPS.
-
-        This ensures sufficient total sampling steps for quality results.
+        Compute base_steps for the simple node based on the selected calculation method.
 
         Args:
             lightning_steps: Number of lightning steps.
@@ -773,8 +782,16 @@ class TripleKSamplerWan22Lightning:
         """
         if lightning_steps <= 0:
             return 1
-        required = math.ceil(MIN_TOTAL_STEPS / float(lightning_steps))
-        return max(1, int(required))
+        
+        if USE_EFFICIENT_TOTAL_STEPS:
+            # Experimental: Calculate based on fixed total steps with lightning_start=1
+            multiplier = 1.0 / lightning_steps  # lightning_start=1 for simple node
+            base_steps = math.ceil(MIN_TOTAL_STEPS * multiplier)
+            return max(1, int(base_steps))
+        else:
+            # Current: Ensure base_steps * lightning_steps >= MIN_TOTAL_STEPS
+            required = math.ceil(MIN_TOTAL_STEPS / float(lightning_steps))
+            return max(1, int(required))
 
     def _calculate_percentage(self, numerator: float, denominator: float) -> float:
         """
@@ -836,17 +853,23 @@ class TripleKSamplerWan22Lightning:
         lightning_start = 1
         base_steps = self._compute_base_steps(lightning_steps)
 
-        bare_logger.info("")
-
         # Log auto-computed parameters for user feedback
         if lightning_start > 0:
-            total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
-            total_base_steps = max(total_base_steps, base_steps)
+            if USE_EFFICIENT_TOTAL_STEPS:
+                # Experimental: Fixed total steps
+                total_base_steps = MIN_TOTAL_STEPS
+                method_note = "(efficient method)"
+            else:
+                # Current: Safe calculation
+                total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
+                total_base_steps = max(total_base_steps, base_steps)
+                method_note = "(safe method)"
+            
             pct_end = self._calculate_percentage(base_steps, total_base_steps)
             logger.info(
-                "Simple node: base_steps = %d (auto-computed). "
+                "Simple node: base_steps = %d (auto-computed) %s. "
                 "Stage 1 will denoise approx. 0%%–%.1f%%",
-                base_steps, pct_end
+                base_steps, method_note, pct_end
             )
 
         # Delegate to advanced implementation

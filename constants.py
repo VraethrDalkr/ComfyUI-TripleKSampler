@@ -23,6 +23,12 @@ ENABLE_CONSISTENCY_CHECK = False
 DEFAULT_BOUNDARY_T2V = 0.875  # Text-to-video models
 DEFAULT_BOUNDARY_I2V = 0.900  # Image-to-video models
 
+# Experimental features
+# Enable efficient total steps calculation (EXPERIMENTAL)
+# When True: total_base_steps = MIN_TOTAL_STEPS (faster, but may cause stage overlap)
+# When False: uses current calculation (safe, no overlap, but more steps)
+USE_EFFICIENT_TOTAL_STEPS = False
+
 # Logging configuration
 LOGGER_PREFIX = "[TripleKSampler]"
 LOG_LEVEL = "INFO"  # Can be: DEBUG, INFO, WARNING, ERROR
