@@ -365,6 +365,8 @@ class TripleKSamplerWan22LightningAdvanced:
         if start_at_step >= end_at_step:
             raise ValueError(f"{stage_name}: start_at_step ({start_at_step}) >= end_at_step ({end_at_step}). Check your step configuration - this indicates invalid sampling range.")
 
+        bare_logger.info("")
+
         # Log stage info right before sampling to appear above progress bar
         if stage_info:
             stage_type = stage_name.replace("Stage 1", "Base denoising").replace("Stage 2", "Lightning high model").replace("Stage 3", "Lightning low model")
@@ -461,6 +463,8 @@ class TripleKSamplerWan22LightningAdvanced:
             if switch_step < lightning_start:
                 raise ValueError(f"switch_step ({switch_step}) cannot be less than lightning_start ({lightning_start}). The high-noise model needs at least some steps before switching. If you want low-noise only, set lightning_start=0 as well.")
         
+        bare_logger.info("")
+
         # Auto-calculate base_steps if requested
         if base_steps == -1:
             multiplier = math.ceil(MIN_TOTAL_STEPS / lightning_steps)
@@ -831,6 +835,8 @@ class TripleKSamplerWan22Lightning:
         # Fixed parameters for simplified interface
         lightning_start = 1
         base_steps = self._compute_base_steps(lightning_steps)
+
+        bare_logger.info("")
 
         # Log auto-computed parameters for user feedback
         if lightning_start > 0:
