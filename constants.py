@@ -18,6 +18,12 @@ MIN_TOTAL_STEPS = 20
 # impact performance. Should remain False for production use.
 ENABLE_CONSISTENCY_CHECK = False
 
+# Dry run mode for testing and debugging
+# When enabled, performs all calculations and logging but skips actual sampling
+# operations. Returns mock latent data. Useful for testing parameter logic
+# without running expensive sampling. Should remain False for production use.
+ENABLE_DRY_RUN = False
+
 # Default sigma boundaries for different model types
 # These values are used when sigma boundary-based model switching is enabled
 DEFAULT_BOUNDARY_T2V = 0.875  # Text-to-video models

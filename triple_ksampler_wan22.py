@@ -23,7 +23,7 @@ import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 
-from .constants import MIN_TOTAL_STEPS, ENABLE_CONSISTENCY_CHECK, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V
+from .constants import MIN_TOTAL_STEPS, ENABLE_CONSISTENCY_CHECK, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V, ENABLE_DRY_RUN
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -43,6 +43,42 @@ if not bare_logger.handlers:
     bare_logger.addHandler(bare_handler)
 bare_logger.propagate = False
 bare_logger.setLevel(logging.INFO)
+
+
+def _calculate_perfect_alignment(min_total_steps: int, lightning_start: int, lightning_steps: int) -> Tuple[int, int, str]:
+    """
+    Calculate base_steps and total_base_steps for perfect stage alignment.
+
+    This unified function handles both simple (lightning_start=1) and complex cases
+    efficiently, ensuring Stage 1 end percentage exactly equals Stage 2 start percentage.
+
+    Args:
+        min_total_steps: Minimum total steps requirement.
+        lightning_start: Starting step in lightning schedule.
+        lightning_steps: Total lightning steps.
+
+    Returns:
+        Tuple of (base_steps, total_base_steps, method_used).
+        method_used is one of: "simple_math", "mathematical_search", "fallback"
+    """
+    if lightning_start == 1:
+        # Simple case: direct calculation guarantees perfect alignment
+        base_steps = math.ceil(min_total_steps / lightning_steps)
+        total_base_steps = base_steps * lightning_steps
+        return base_steps, total_base_steps, "simple_math"
+    else:
+        # Complex case: search for perfect alignment
+        search_limit = min_total_steps + lightning_steps
+        for candidate_total in range(min_total_steps, search_limit):
+            if (candidate_total * lightning_start) % lightning_steps == 0:
+                base_steps = candidate_total * lightning_start // lightning_steps
+                return base_steps, candidate_total, "mathematical_search"
+
+        # Fallback if no perfect alignment found (very rare)
+        base_steps = math.ceil(min_total_steps * lightning_start / lightning_steps)
+        optimal_total = base_steps * lightning_steps / lightning_start
+        total_base_steps = max(int(math.ceil(optimal_total)), min_total_steps)
+        return base_steps, total_base_steps, "fallback"
 
 
 class TripleKSamplerWan22LightningAdvanced:
@@ -364,7 +400,8 @@ class TripleKSamplerWan22LightningAdvanced:
         """
         if start_at_step >= end_at_step:
             raise ValueError(f"{stage_name}: start_at_step ({start_at_step}) >= end_at_step ({end_at_step}). Check your step configuration - this indicates invalid sampling range.")
-
+        
+        # Add visual separator before all sampling begins
         bare_logger.info("")
 
         # Log stage info right before sampling to appear above progress bar
@@ -372,10 +409,15 @@ class TripleKSamplerWan22LightningAdvanced:
             stage_type = stage_name.replace("Stage 1", "Base denoising").replace("Stage 2", "Lightning high model").replace("Stage 3", "Lightning low model")
             logger.info("%s: %s - %s", stage_name, stage_type, stage_info)
 
+        # Dry run mode: skip actual sampling and return mock data
+        if ENABLE_DRY_RUN:
+            # Return the input latent unchanged for dry run
+            return (latent,)
+
         advanced_sampler = nodes.KSamplerAdvanced()
         add_noise_mode = "enable" if add_noise else "disable"
         return_noise_mode = "enable" if return_with_leftover_noise else "disable"
-        
+
         try:
             result = advanced_sampler.sample(
                 model=model,
@@ -395,7 +437,7 @@ class TripleKSamplerWan22LightningAdvanced:
             )
         except Exception as exc:
             raise RuntimeError(f"{stage_name}: sampling failed.") from exc
-            
+
         return result
 
     def sample(
@@ -448,6 +490,23 @@ class TripleKSamplerWan22LightningAdvanced:
         Raises:
             ValueError: If parameters are invalid.
         """
+        # Log all input parameters for debugging
+        bare_logger.info("")
+        logger.info("=== TripleKSampler Advanced Node - Input Parameters ===")
+        logger.info("Models: high_model, high_model_lx2v, low_model_lx2v")
+        logger.info("Sampling: seed=%d, sigma_shift=%.3f", seed, sigma_shift)
+        logger.info("Base stage: base_steps=%d, base_cfg=%.1f", base_steps, base_cfg)
+        logger.info("Lightning: lightning_start=%d, lightning_steps=%d, lightning_cfg=%.1f",
+                   lightning_start, lightning_steps, lightning_cfg)
+        logger.info("Sampler: %s, scheduler: %s", sampler_name, scheduler)
+        logger.info("Strategy: %s", switch_strategy)
+        if switch_strategy == "Manual boundary":
+            logger.info("  switch_boundary=%.3f", switch_boundary)
+        elif switch_strategy == "Manual switch step":
+            logger.info("  switch_step=%d", switch_step)
+        logger.info("Constants: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", MIN_TOTAL_STEPS, ENABLE_DRY_RUN)
+        bare_logger.info("")
+
         # Validate parameters
         if lightning_steps < 2:
             raise ValueError("lightning_steps must be at least 2.")
@@ -462,14 +521,32 @@ class TripleKSamplerWan22LightningAdvanced:
                 raise ValueError(f"switch_step ({switch_step}) must be < lightning_steps ({lightning_steps}). Use a smaller value or different strategy.")
             if switch_step < lightning_start:
                 raise ValueError(f"switch_step ({switch_step}) cannot be less than lightning_start ({lightning_start}). The high-noise model needs at least some steps before switching. If you want low-noise only, set lightning_start=0 as well.")
-        
-        bare_logger.info("")
+
+        # Track if base_steps was auto-calculated for smart method selection
+        base_steps_auto_calculated = (base_steps == -1)
 
         # Auto-calculate base_steps if requested
         if base_steps == -1:
-            multiplier = math.ceil(MIN_TOTAL_STEPS / lightning_steps)
-            base_steps = lightning_start * multiplier
-            logger.info("Auto-calculated base_steps = %d", base_steps)
+            # Use unified perfect alignment calculation
+            base_steps, optimal_total_base_steps, method = _calculate_perfect_alignment(
+                MIN_TOTAL_STEPS, lightning_start, lightning_steps
+            )
+
+            if method == "mathematical_search":
+                logger.info("Auto-calculated base_steps = %d, total_base_steps = %d (perfect alignment method)",
+                           base_steps, optimal_total_base_steps)
+                logger.info("DEBUG: Found perfect alignment using mathematical search")
+            elif method == "simple_math":
+                logger.info("Auto-calculated base_steps = %d, total_base_steps = %d (simple math method)",
+                           base_steps, optimal_total_base_steps)
+                logger.info("DEBUG: Perfect alignment using simple math (lightning_start=1)")
+            else:  # fallback
+                logger.info("Auto-calculated base_steps = %d (fallback method - no perfect alignment found)",
+                           base_steps)
+                logger.info("DEBUG: Using fallback calculation")
+                optimal_total_base_steps = None  # Will trigger fallback calculation later
+
+            logger.info("DEBUG: base_steps_auto_calculated flag = %s", base_steps_auto_calculated)
         
         # Validate base_steps after potential auto-calculation
         if lightning_start > 0 and base_steps < 1:
@@ -562,13 +639,65 @@ class TripleKSamplerWan22LightningAdvanced:
         # Stage 1: Base Denoising
         if skip_stage1:
             if base_steps > 0:
-                raise ValueError(f"base_steps ({base_steps}) is ignored when lightning_start=0. Set base_steps=0 or base_steps=-1 for Lightning-only mode, or increase lightning_start to use base denoising.")
+                raise ValueError(f"Set base_steps=0 or base_steps=-1 for Lightning-only mode, or increase lightning_start to use base denoising.")
             bare_logger.info("")
             logger.info("Stage 1: Skipped (Lightning-only mode)")
             stage1_output = latent_image
         else:
-            total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
-            total_base_steps = max(total_base_steps, base_steps)
+            # Calculate total_base_steps
+            if base_steps_auto_calculated:
+                # Use pre-calculated optimal value from unified alignment function
+                if 'optimal_total_base_steps' in locals() and optimal_total_base_steps is not None:
+                    total_base_steps = optimal_total_base_steps
+                    logger.info("DEBUG: Using pre-calculated perfect alignment total_base_steps=%d", total_base_steps)
+
+                    # Verify perfect alignment (should always be exact)
+                    stage1_end_pct = base_steps / total_base_steps
+                    stage2_start_pct = lightning_start / lightning_steps
+                    logger.info("DEBUG: Perfect alignment verification: Stage1 %.3f%% = Stage2 %.3f%% (diff=%.6f)",
+                               stage1_end_pct * 100, stage2_start_pct * 100,
+                               abs(stage1_end_pct - stage2_start_pct))
+                else:
+                    # Fallback: recalculate using unified function (should rarely happen)
+                    _, total_base_steps, fallback_method = _calculate_perfect_alignment(
+                        MIN_TOTAL_STEPS, lightning_start, lightning_steps
+                    )
+                    logger.info("DEBUG: Fallback recalculation using %s - total_base_steps=%d",
+                               fallback_method, total_base_steps)
+            else:
+                # Manual base_steps: use standard calculation to match Stage 2 start
+                total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
+                total_base_steps = max(total_base_steps, base_steps)
+                logger.info("DEBUG: Manual path - total_base_steps=%d", total_base_steps)
+
+                # Check for stage overlap and warn user
+                stage1_end_pct = base_steps / total_base_steps
+                stage2_start_pct = lightning_start / lightning_steps
+                if stage1_end_pct > stage2_start_pct:
+                    overlap_pct = (stage1_end_pct - stage2_start_pct) * 100
+
+                    # Suggest multiples of lightning_start for perfect alignment
+                    current_multiple = base_steps // lightning_start
+                    lower_multiple = max(current_multiple * lightning_start, lightning_start)
+                    upper_multiple = (current_multiple + 1) * lightning_start
+
+                    # Handle edge case where both suggestions are the same
+                    if lower_multiple == upper_multiple:
+                        logger.warning(
+                            "Stage overlap detected! Stage 1 ends at %.1f%% but Stage 2 starts at %.1f%% "
+                            "(%.1f%% overlap). For perfect alignment, use base_steps=%d "
+                            "(multiple of %d), or use base_steps=-1 for auto-calculation.",
+                            stage1_end_pct * 100, stage2_start_pct * 100, overlap_pct,
+                            lower_multiple, lightning_start
+                        )
+                    else:
+                        logger.warning(
+                            "Stage overlap detected! Stage 1 ends at %.1f%% but Stage 2 starts at %.1f%% "
+                            "(%.1f%% overlap). For perfect alignment, use base_steps=%d or %d "
+                            "(multiples of %d), or use base_steps=-1 for auto-calculation.",
+                            stage1_end_pct * 100, stage2_start_pct * 100, overlap_pct,
+                            lower_multiple, upper_multiple, lightning_start
+                        )
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
             
             stage1_result = self._run_sampling_stage(
@@ -643,7 +772,11 @@ class TripleKSamplerWan22LightningAdvanced:
 
         # Add final visual separator after all sampling completes
         bare_logger.info("")
-        
+
+        # Log dry run summary if enabled
+        if ENABLE_DRY_RUN:
+            logger.info("[DRY RUN] Complete - All calculations performed, no actual sampling executed")
+
         return stage3_result
 
 
@@ -759,22 +892,27 @@ class TripleKSamplerWan22Lightning:
         "Optimized interface with auto-computed parameters for ease of use."
     )
 
-    def _compute_base_steps(self, lightning_steps: int) -> int:
+    def _compute_base_steps(self, lightning_steps: int) -> Tuple[int, int, str]:
         """
-        Compute base_steps to ensure base_steps * lightning_steps >= _MIN_TOTAL_STEPS.
+        Compute base_steps and total_base_steps for the simple node.
 
-        This ensures sufficient total sampling steps for quality results.
+        Uses the unified perfect alignment function with lightning_start=1.
 
         Args:
             lightning_steps: Number of lightning steps.
 
         Returns:
-            Computed base_steps value (minimum 1).
+            Tuple of (base_steps, total_base_steps, method) with perfect alignment.
         """
         if lightning_steps <= 0:
-            return 1
-        required = math.ceil(MIN_TOTAL_STEPS / float(lightning_steps))
-        return max(1, int(required))
+            return 1, MIN_TOTAL_STEPS, "simple_math"
+
+        # Simple node always uses lightning_start=1
+        base_steps, total_base_steps, method = _calculate_perfect_alignment(
+            MIN_TOTAL_STEPS, 1, lightning_steps
+        )
+
+        return max(1, int(base_steps)), total_base_steps, method
 
     def _calculate_percentage(self, numerator: float, denominator: float) -> float:
         """
@@ -834,19 +972,15 @@ class TripleKSamplerWan22Lightning:
         """
         # Fixed parameters for simplified interface
         lightning_start = 1
-        base_steps = self._compute_base_steps(lightning_steps)
-
-        bare_logger.info("")
+        base_steps, total_base_steps, method = self._compute_base_steps(lightning_steps)
 
         # Log auto-computed parameters for user feedback
         if lightning_start > 0:
-            total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
-            total_base_steps = max(total_base_steps, base_steps)
             pct_end = self._calculate_percentage(base_steps, total_base_steps)
             logger.info(
-                "Simple node: base_steps = %d (auto-computed). "
+                "Simple node: base_steps = %d, total_base_steps = %d (%s). "
                 "Stage 1 will denoise approx. 0%%–%.1f%%",
-                base_steps, pct_end
+                base_steps, total_base_steps, method.replace("_", " "), pct_end
             )
 
         # Delegate to advanced implementation
