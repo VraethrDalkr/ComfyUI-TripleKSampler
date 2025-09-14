@@ -57,7 +57,7 @@ output/
 
 # Development files
 CLAUDE.md
-.claude
+.claude/
 
 # Testing
 tests/
