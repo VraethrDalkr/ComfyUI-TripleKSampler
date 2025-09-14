@@ -23,7 +23,7 @@ import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 
-from .constants import MIN_TOTAL_STEPS, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V, ENABLE_DRY_RUN, ENABLE_KJNODES_COMPATIBILITY_FIX
+from .constants import MIN_TOTAL_STEPS, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V, ENABLE_KJNODES_COMPATIBILITY_FIX
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -203,6 +203,7 @@ class TripleKSamplerWan22Base:
         end_at_step: int,
         add_noise: bool,
         return_with_leftover_noise: bool,
+        dry_run: bool = False,
         stage_name: str = "Sampler",
         stage_info: str = None
     ) -> Tuple[Dict[str, torch.Tensor]]:
@@ -223,6 +224,7 @@ class TripleKSamplerWan22Base:
             end_at_step: Ending step (exclusive).
             add_noise: Whether to add initial noise.
             return_with_leftover_noise: Whether to return with remaining noise.
+            dry_run: Enable dry run mode for testing configurations without sampling.
             stage_name: Stage identifier for logging.
             stage_info: Optional stage information to log right before sampling.
 
@@ -248,7 +250,7 @@ class TripleKSamplerWan22Base:
             )
             logger.info("%s: %s - %s", stage_name, stage_type, stage_info)
 
-        if ENABLE_DRY_RUN:
+        if dry_run:
             return (latent,)
 
         # Apply KJNodes compatibility fix if enabled
@@ -500,6 +502,13 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         )
                     }
                 ),
+                "dry_run": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Enable dry run mode for testing configurations without actual sampling."
+                    }
+                ),
             }
         }
 
@@ -532,7 +541,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         scheduler: str,
         switch_strategy: str,
         switch_boundary: float = 0.875,
-        switch_step: int = -1
+        switch_step: int = -1,
+        dry_run: bool = False
     ) -> Tuple[Dict[str, torch.Tensor]]:
         """
         Execute triple-stage cascade sampling with comprehensive logging.
@@ -556,6 +566,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             switch_strategy: Strategy for lightning model switching.
             switch_boundary: Sigma boundary for manual boundary strategy (optional).
             switch_step: Manual switch step for manual switch step strategy (optional).
+            dry_run: Enable dry run mode for testing configurations without sampling (optional).
 
         Returns:
             Tuple containing final latent dictionary.
@@ -577,7 +588,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             logger.info("  switch_boundary=%.3f", switch_boundary)
         elif switch_strategy == "Manual switch step":
             logger.info("  switch_step=%d", switch_step)
-        logger.info("Constants: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", MIN_TOTAL_STEPS, ENABLE_DRY_RUN)
+        logger.info("Constants: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", MIN_TOTAL_STEPS, dry_run)
         bare_logger.info("")
 
         # Validate parameters
@@ -787,6 +798,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 end_at_step=base_steps,
                 add_noise=stage1_add_noise,
                 return_with_leftover_noise=True,
+                dry_run=dry_run,
                 stage_name="Stage 1",
                 stage_info=stage1_info
             )
@@ -816,6 +828,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 end_at_step=switch_step_final,
                 add_noise=stage2_add_noise,
                 return_with_leftover_noise=True,
+                dry_run=dry_run,
                 stage_name="Stage 2",
                 stage_info=stage2_info
             )
@@ -839,6 +852,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             end_at_step=lightning_steps,
             add_noise=stage3_add_noise,
             return_with_leftover_noise=False,
+            dry_run=dry_run,
             stage_name="Stage 3",
             stage_info=stage3_info
         )
@@ -847,7 +861,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         bare_logger.info("")
 
         # Log dry run summary if enabled
-        if ENABLE_DRY_RUN:
+        if dry_run:
             logger.info("[DRY RUN] Complete - All calculations performed, no actual sampling executed")
 
         return stage3_result

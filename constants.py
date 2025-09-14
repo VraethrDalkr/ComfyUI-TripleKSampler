@@ -12,12 +12,6 @@ behavior without changing the core implementation.
 # base_steps = lightning_start * ceil(MIN_TOTAL_STEPS / lightning_steps)
 MIN_TOTAL_STEPS = 20
 
-# Dry run mode for testing and debugging
-# When enabled, performs all calculations and logging but skips actual sampling
-# operations. Returns mock latent data. Useful for testing parameter logic
-# without running expensive sampling. Should remain False for production use.
-ENABLE_DRY_RUN = False
-
 # KJNodes compatibility fix toggle
 # When enabled, applies a temporary monkey-patch to fix KJNodes transformer_options
 # compatibility issue. Disable this once KJNodes is updated to support the parameter.

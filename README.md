@@ -29,10 +29,12 @@ Main triple-stage sampler with optimized ease-of-use:
 Advanced variant with complete configurability:
 
 - **Full Parameter Control**: Every aspect of the sampling process is configurable
+- **5 Switching Strategies**: Manual step, manual boundary, T2V boundary, I2V boundary, 50% midpoint
+- **Dynamic UI**: Parameters show/hide based on selected strategy for cleaner interface
 - **Auto-calculation Options**: Both base_steps and switch_step can be auto-computed (-1) or manually set
+- **Dry Run Mode**: Test configurations without actual sampling execution
 - **Lightning-start Aware**: Auto-calculation accounts for when Lightning processing begins
-- **Model Switching**: Supports step-based, sigma boundary, and manual switching strategies
-- **Professional Features**: Advanced users get ultimate flexibility
+- **Professional Features**: Advanced users get ultimate flexibility and testing capabilities
 
 ## Installation
 
@@ -98,8 +100,13 @@ The example workflow includes:
    - `lightning_steps`: Total lightning steps (typically 8)
 
 4. Choose model switching strategy:
-   - **Midpoint**: Simple 50/50 split between lightning models
-   - **Boundary**: Sigma-based switching (0.875 for T2V, 0.900 for I2V)
+   - **"50% of steps"**: Simple 50/50 split between lightning models
+   - **"Manual switch step"**: Precise step-based control
+   - **"T2V boundary"**: Auto-optimized for text-to-video (0.875)
+   - **"I2V boundary"**: Auto-optimized for image-to-video (0.900)
+   - **"Manual boundary"**: Custom sigma-based switching
+
+5. Optional: Enable **Dry Run** mode (Advanced node) to test configurations without sampling
 
 ### Parameter Guidelines
 
@@ -110,11 +117,24 @@ The example workflow includes:
 
 ## Model Switching Strategies
 
-### Midpoint Strategy
+The advanced node offers 5 switching strategies with dynamic UI that shows only relevant parameters:
+
+### 1. "50% of steps" (Auto-Midpoint)
 Simple approach that switches at 50% of lightning steps. Reliable and straightforward.
 
-### Sigma Boundary Strategy  
-More sophisticated approach that analyzes sigma schedules to determine optimal switching point. Better quality but requires tuning boundary parameter for different use cases.
+### 2. "Manual switch step"
+Allows precise control over the switching step. Shows switch_step parameter for manual configuration.
+
+### 3. "T2V boundary" (Auto-Boundary)
+Optimized for text-to-video models, automatically uses boundary value of 0.875 for sigma-based switching.
+
+### 4. "I2V boundary" (Auto-Boundary)
+Optimized for image-to-video models, automatically uses boundary value of 0.900 for sigma-based switching.
+
+### 5. "Manual boundary"
+Full control over sigma boundary value. Shows switch_boundary parameter for manual configuration.
+
+**Dynamic UI**: Only relevant parameters are shown based on the selected strategy, keeping the interface clean and focused.
 
 ## Configuration
 
@@ -123,6 +143,9 @@ The package includes a `constants.py` file with user-configurable parameters:
 ```python
 # Quality threshold for automatic base step calculation
 MIN_TOTAL_STEPS = 20
+
+# KJNodes compatibility fix toggle
+ENABLE_KJNODES_COMPATIBILITY_FIX = True
 
 # Default sigma boundaries for different model types
 DEFAULT_BOUNDARY_T2V = 0.875  # Text-to-video models
@@ -134,6 +157,31 @@ LOG_LEVEL = "INFO"
 ```
 
 Users can modify these values to tune sampling behavior without changing the core implementation.
+
+## Advanced Features
+
+### Dry Run Mode (Advanced Node Only)
+The advanced node includes a **Dry Run** boolean parameter for testing configurations:
+
+- **Purpose**: Test parameter combinations without expensive sampling operations
+- **Validation**: Performs complete parameter validation and logging
+- **Performance**: Instant feedback for workflow testing and debugging
+- **Usage**: Enable the "dry_run" checkbox in the advanced node interface
+
+### KJNodes Compatibility
+Automatic compatibility with KJNodes when installed:
+
+- **Auto-Detection**: Automatically detects KJNodes installation
+- **Parameter Stripping**: Safely handles transformer_options parameter conflicts
+- **Dual-Layer Fix**: Uses both model proxy and function patching for reliability
+- **Configurable**: Can be disabled by setting `ENABLE_KJNODES_COMPATIBILITY_FIX = False`
+
+### Clean Architecture
+Built with professional software engineering principles:
+
+- **Inheritance Hierarchy**: Base → Advanced → Simple node structure eliminates code duplication
+- **Dynamic UI**: Interface adapts to selected strategy for optimal user experience
+- **Comprehensive Validation**: Edge cases and parameter conflicts are handled gracefully
 
 ## Logging
 
@@ -150,9 +198,13 @@ The nodes provide detailed logging including:
 - Standard ComfyUI dependencies
 
 ### Code Structure
-- `__init__.py`: Package initialization and node registration
-- `triple_ksampler_wan22.py`: Main implementation with both node classes
+- `__init__.py`: Package initialization, node registration, and web directory setup
+- `triple_ksampler_wan22.py`: Main implementation with clean inheritance hierarchy:
+  - `TripleKSamplerWan22Base`: Shared functionality and core sampling logic
+  - `TripleKSamplerWan22LightningAdvanced`: Advanced node with full parameter control
+  - `TripleKSamplerWan22Lightning`: Simple node with streamlined interface
 - `constants.py`: Configuration constants and user-tunable parameters
+- `web/triple_ksampler_ui.js`: JavaScript for dynamic UI parameter visibility
 
 ### Testing
 To test the nodes are properly loaded:
@@ -163,10 +215,12 @@ To test the nodes are properly loaded:
 ## Version History
 
 ### v0.3.1 (Current)
+- **NEW FEATURE**: Dry Run Mode - Boolean parameter in advanced node for testing configurations without sampling
+- **ARCHITECTURE**: Major inheritance refactor - Base → Advanced → Simple eliminates ~400 lines of code duplication
+- **COMPATIBILITY**: Enhanced KJNodes compatibility with configurable dual-layer fix system
+- **DEVELOPMENT**: Comprehensive test suite with VSCode integration and type stub support
 - **BREAKING**: Standardized error handling with consistent 'fail fast' approach
 - **Enhanced Error Messages**: All configuration conflicts now raise ValueError with actionable guidance
-- **Documentation Consistency**: Fixed simple node docstring, updated error message examples with suggestions
-- **Development Infrastructure**: Implemented dev-only testing strategy with comprehensive validation tests
 - **Code Quality**: Simplified line break usage, enhanced parameter validation with edge case coverage
 
 ### v0.3.0
