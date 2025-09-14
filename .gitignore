@@ -35,7 +35,8 @@ env.bak/
 venv.bak/
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 *.swp
 *.swo
@@ -58,6 +59,10 @@ output/
 # Development files
 CLAUDE.md
 .claude/
+
+# Type stubs (VSCode development only)
+stubs/
+*.pyi
 
 # Testing
 tests/
