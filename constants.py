@@ -12,12 +12,6 @@ behavior without changing the core implementation.
 # base_steps = lightning_start * ceil(MIN_TOTAL_STEPS / lightning_steps)
 MIN_TOTAL_STEPS = 20
 
-# Development toggle for latent consistency debugging
-# When enabled, performs additional validation checks on latent tensors
-# between sampling stages. Useful for development and debugging but may
-# impact performance. Should remain False for production use.
-ENABLE_CONSISTENCY_CHECK = False
-
 # Dry run mode for testing and debugging
 # When enabled, performs all calculations and logging but skips actual sampling
 # operations. Returns mock latent data. Useful for testing parameter logic

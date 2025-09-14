@@ -124,9 +124,6 @@ The package includes a `constants.py` file with user-configurable parameters:
 # Quality threshold for automatic base step calculation
 MIN_TOTAL_STEPS = 20
 
-# Development toggle for latent consistency debugging
-ENABLE_CONSISTENCY_CHECK = False
-
 # Default sigma boundaries for different model types
 DEFAULT_BOUNDARY_T2V = 0.875  # Text-to-video models
 DEFAULT_BOUNDARY_I2V = 0.900  # Image-to-video models
