@@ -203,10 +203,15 @@ To test the nodes are properly loaded:
 
 ## Version History
 
-### v0.3.1 (Current)
-- **NEW FEATURE**: Dry Run Mode - Boolean parameter in advanced node for testing configurations without sampling
+### v0.3.2 (Current)
+- **FEATURE**: Dry Run Mode - Boolean parameter in advanced node for testing configurations without sampling execution
+- **REMOVAL**: KJNodes compatibility system removed (no longer needed - KJNodes fixed their transformer_options issue)
+- **ENHANCEMENT**: Improved type annotations with Optional[str] for better IDE support
+- **SIMPLIFICATION**: Removed ENABLE_KJNODES_COMPATIBILITY_FIX constant and ~79 lines of compatibility code
+- **ARCHITECTURE**: Continued refinement of clean inheritance structure
+
+### v0.3.1
 - **ARCHITECTURE**: Major inheritance refactor - Base → Advanced → Simple eliminates ~400 lines of code duplication
-- **DEVELOPMENT**: Comprehensive test suite with VSCode integration and type stub support
 - **BREAKING**: Standardized error handling with consistent 'fail fast' approach
 - **Enhanced Error Messages**: All configuration conflicts now raise ValueError with actionable guidance
 - **Code Quality**: Simplified line break usage, enhanced parameter validation with edge case coverage
