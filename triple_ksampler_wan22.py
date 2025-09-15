@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import comfy.model_sampling
 import comfy.samplers
@@ -23,7 +23,7 @@ import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 
-from .constants import MIN_TOTAL_STEPS, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V, ENABLE_KJNODES_COMPATIBILITY_FIX
+from .constants import MIN_TOTAL_STEPS, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -205,7 +205,7 @@ class TripleKSamplerWan22Base:
         return_with_leftover_noise: bool,
         dry_run: bool = False,
         stage_name: str = "Sampler",
-        stage_info: str = None
+        stage_info: Optional[str] = None
     ) -> Tuple[Dict[str, torch.Tensor]]:
         """
         Execute a single sampling stage using KSamplerAdvanced.
@@ -252,66 +252,6 @@ class TripleKSamplerWan22Base:
 
         if dry_run:
             return (latent,)
-
-        # Apply KJNodes compatibility fix if enabled
-        if ENABLE_KJNODES_COMPATIBILITY_FIX:
-            # --- 1. Model proxy to strip bad kwargs ---
-            class _ModelEntryStripper:
-                """
-                Proxy that preserves model attributes but strips problematic kwargs
-                at sampler entry points (__call__, apply_model).
-                """
-                def __init__(self, model, kwargs_to_strip=None):
-                    self._model = model
-                    self._strip = set(kwargs_to_strip or ("transformer_options",))
-
-                def __getattr__(self, name):
-                    return getattr(self._model, name)
-
-                def _strip_kwargs(self, kwargs):
-                    for k in list(kwargs.keys()):
-                        if k in self._strip:
-                            kwargs.pop(k, None)
-                    return kwargs
-
-                def __call__(self, *args, **kwargs):
-                    kwargs = self._strip_kwargs(kwargs)
-                    return self._model(*args, **kwargs)
-
-                def apply_model(self, *args, **kwargs):
-                    kwargs = self._strip_kwargs(kwargs)
-                    return self._model.apply_model(*args, **kwargs)
-
-            model = _ModelEntryStripper(model)
-
-            # --- 2. Monkeypatch KJNodes WAN attention if present ---
-            import sys, types
-
-            def _monkeypatch_kjnodes_strip_transformer_options():
-                for m in list(sys.modules.values()):
-                    if not isinstance(m, types.ModuleType):
-                        continue
-                    mfile = getattr(m, "__file__", None)
-                    if not mfile or not mfile.endswith("model_optimization_nodes.py"):
-                        continue
-
-                    orig = getattr(m, "modified_wan_self_attention_forward", None)
-                    if orig is None:
-                        return False
-                    if getattr(orig, "__patched_strip_transformer__", False):
-                        return True
-
-                    def _patched(self_module, *args, **kwargs):
-                        kwargs.pop("transformer_options", None)
-                        return orig(self_module, *args, **kwargs)
-
-                    _patched.__patched_strip_transformer__ = True
-                    _patched.__original__ = orig
-                    setattr(m, "modified_wan_self_attention_forward", _patched)
-                    return True
-                return False
-
-            _monkeypatch_kjnodes_strip_transformer_options()
 
         advanced_sampler = nodes.KSamplerAdvanced()
         add_noise_mode = "enable" if add_noise else "disable"

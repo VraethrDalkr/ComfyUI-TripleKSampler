@@ -144,9 +144,6 @@ The package includes a `constants.py` file with user-configurable parameters:
 # Quality threshold for automatic base step calculation
 MIN_TOTAL_STEPS = 20
 
-# KJNodes compatibility fix toggle
-ENABLE_KJNODES_COMPATIBILITY_FIX = True
-
 # Default sigma boundaries for different model types
 DEFAULT_BOUNDARY_T2V = 0.875  # Text-to-video models
 DEFAULT_BOUNDARY_I2V = 0.900  # Image-to-video models
@@ -167,14 +164,6 @@ The advanced node includes a **Dry Run** boolean parameter for testing configura
 - **Validation**: Performs complete parameter validation and logging
 - **Performance**: Instant feedback for workflow testing and debugging
 - **Usage**: Enable the "dry_run" checkbox in the advanced node interface
-
-### KJNodes Compatibility
-Automatic compatibility with KJNodes when installed:
-
-- **Auto-Detection**: Automatically detects KJNodes installation
-- **Parameter Stripping**: Safely handles transformer_options parameter conflicts
-- **Dual-Layer Fix**: Uses both model proxy and function patching for reliability
-- **Configurable**: Can be disabled by setting `ENABLE_KJNODES_COMPATIBILITY_FIX = False`
 
 ### Clean Architecture
 Built with professional software engineering principles:
@@ -217,7 +206,6 @@ To test the nodes are properly loaded:
 ### v0.3.1 (Current)
 - **NEW FEATURE**: Dry Run Mode - Boolean parameter in advanced node for testing configurations without sampling
 - **ARCHITECTURE**: Major inheritance refactor - Base → Advanced → Simple eliminates ~400 lines of code duplication
-- **COMPATIBILITY**: Enhanced KJNodes compatibility with configurable dual-layer fix system
 - **DEVELOPMENT**: Comprehensive test suite with VSCode integration and type stub support
 - **BREAKING**: Standardized error handling with consistent 'fail fast' approach
 - **Enhanced Error Messages**: All configuration conflicts now raise ValueError with actionable guidance

@@ -12,12 +12,6 @@ behavior without changing the core implementation.
 # base_steps = lightning_start * ceil(MIN_TOTAL_STEPS / lightning_steps)
 MIN_TOTAL_STEPS = 20
 
-# KJNodes compatibility fix toggle
-# When enabled, applies a temporary monkey-patch to fix KJNodes transformer_options
-# compatibility issue. Disable this once KJNodes is updated to support the parameter.
-# See: https://github.com/kijai/ComfyUI-KJNodes/issues/387
-ENABLE_KJNODES_COMPATIBILITY_FIX = True
-
 # Default sigma boundaries for different model types
 # These values are used when sigma boundary-based model switching is enabled
 DEFAULT_BOUNDARY_T2V = 0.875  # Text-to-video models
