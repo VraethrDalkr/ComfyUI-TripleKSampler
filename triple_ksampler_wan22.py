@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import comfy.model_sampling
 import comfy.samplers
@@ -23,7 +23,7 @@ import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 
-from .constants import MIN_TOTAL_STEPS, ENABLE_CONSISTENCY_CHECK, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V, ENABLE_DRY_RUN
+from .constants import MIN_TOTAL_STEPS, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -81,7 +81,206 @@ def _calculate_perfect_alignment(min_total_steps: int, lightning_start: int, lig
         return base_steps, total_base_steps, "fallback"
 
 
-class TripleKSamplerWan22LightningAdvanced:
+class TripleKSamplerWan22Base:
+    """
+    Base class for Triple-stage KSampler nodes with shared functionality.
+
+    Contains all the common methods and logic for triple-stage sampling,
+    including model patching, stage execution, and validation.
+    """
+
+    def _get_model_patcher(self) -> ModelSamplingSD3:
+        """
+        Create ModelSamplingSD3 instance for patching models.
+
+        Returns:
+            ModelSamplingSD3 instance for model patching.
+        """
+        return ModelSamplingSD3()
+
+
+    def _canonicalize_shift(self, value: float) -> float:
+        """
+        Convert shift value to canonical Python float.
+
+        Args:
+            value: Shift value input (may be tensor or other numeric type).
+
+        Returns:
+            Canonical float representation.
+        """
+        return float(value)
+
+    def _calculate_percentage(self, numerator: float, denominator: float) -> float:
+        """
+        Calculate percentage with single digit precision for logging.
+
+        Args:
+            numerator: Numerator value.
+            denominator: Denominator value.
+
+        Returns:
+            Float percentage between 0.0 and 100.0 with one decimal place.
+        """
+        if denominator == 0:
+            return 0.0
+        percentage = (float(numerator) / float(denominator)) * 100.0
+        return round(max(0.0, min(100.0, percentage)), 1)
+
+    def _format_stage_range(self, start: int, end: int, total: int) -> str:
+        """
+        Format human-readable stage range with denoising percentages.
+
+        Args:
+            start: Starting step (inclusive).
+            end: Ending step (exclusive).
+            total: Total steps in schedule.
+
+        Returns:
+            Formatted string like "steps 0-4 of 24 (denoising 0%-16%)".
+        """
+        start_safe = int(max(0, start))
+        end_safe = int(max(start_safe, end))
+        total_safe = int(max(1, total))
+
+        pct_start = self._calculate_percentage(start_safe, total_safe)
+        pct_end = self._calculate_percentage(end_safe, total_safe)
+
+        return f"steps {start_safe}-{end_safe} of {total_safe} (denoising {pct_start:.1f}%–{pct_end:.1f}%)"
+
+    def _compute_boundary_switching_step(
+        self,
+        sampling: Any,
+        scheduler: str,
+        steps: int,
+        boundary: float
+    ) -> int:
+        """
+        Compute model switching step based on sigma boundary.
+
+        Args:
+            sampling: Model sampling object.
+            scheduler: Scheduler name.
+            steps: Number of lightning steps.
+            boundary: Timestep boundary (0-1).
+
+        Returns:
+            Switching step index in range [0, steps-1].
+        """
+        sigmas = comfy.samplers.calculate_sigmas(sampling, scheduler, steps)
+        timesteps: List[float] = []
+
+        # Convert tensor sigmas to timesteps
+        for sigma in sigmas:
+            timestep = sampling.timestep(float(sigma.item())) / 1000.0
+            timesteps.append(timestep)
+
+        switching_step = steps
+        # Start at index 1 to match previous behavior
+        for i, timestep in enumerate(timesteps[1:], start=1):
+            if timestep < float(boundary):
+                switching_step = i
+                break
+
+        # Ensure switching step is within valid range
+        if switching_step >= steps:
+            switching_step = steps - 1
+
+        return int(switching_step)
+
+    def _run_sampling_stage(
+        self,
+        model: Any,
+        positive: Any,
+        negative: Any,
+        latent: Dict[str, torch.Tensor],
+        seed: int,
+        steps: int,
+        cfg: float,
+        sampler_name: str,
+        scheduler: str,
+        start_at_step: int,
+        end_at_step: int,
+        add_noise: bool,
+        return_with_leftover_noise: bool,
+        dry_run: bool = False,
+        stage_name: str = "Sampler",
+        stage_info: Optional[str] = None
+    ) -> Tuple[Dict[str, torch.Tensor]]:
+        """
+        Execute a single sampling stage using KSamplerAdvanced.
+
+        Args:
+            model: Model to use for sampling.
+            positive: Positive conditioning.
+            negative: Negative conditioning.
+            latent: Input latent dictionary.
+            seed: Random seed.
+            steps: Total steps in schedule.
+            cfg: CFG scale.
+            sampler_name: Sampler algorithm name.
+            scheduler: Noise scheduler name.
+            start_at_step: Starting step (inclusive).
+            end_at_step: Ending step (exclusive).
+            add_noise: Whether to add initial noise.
+            return_with_leftover_noise: Whether to return with remaining noise.
+            dry_run: Enable dry run mode for testing configurations without sampling.
+            stage_name: Stage identifier for logging.
+            stage_info: Optional stage information to log right before sampling.
+
+        Returns:
+            Tuple containing the resulting latent dictionary.
+
+        Raises:
+            RuntimeError: If sampling fails.
+        """
+        if start_at_step >= end_at_step:
+            raise ValueError(
+                f"{stage_name}: start_at_step ({start_at_step}) >= end_at_step ({end_at_step}). "
+                "Check your step configuration - this indicates invalid sampling range."
+            )
+
+        bare_logger.info("")  # separator before sampling logs
+
+        if stage_info:
+            stage_type = (
+                stage_name.replace("Stage 1", "Base denoising")
+                .replace("Stage 2", "Lightning high model")
+                .replace("Stage 3", "Lightning low model")
+            )
+            logger.info("%s: %s - %s", stage_name, stage_type, stage_info)
+
+        if dry_run:
+            return (latent,)
+
+        advanced_sampler = nodes.KSamplerAdvanced()
+        add_noise_mode = "enable" if add_noise else "disable"
+        return_noise_mode = "enable" if return_with_leftover_noise else "disable"
+
+        try:
+            result = advanced_sampler.sample(
+                model=model,
+                add_noise=add_noise_mode,
+                noise_seed=seed,
+                steps=steps,
+                cfg=cfg,
+                sampler_name=sampler_name,
+                scheduler=scheduler,
+                positive=positive,
+                negative=negative,
+                latent_image=latent,
+                start_at_step=start_at_step,
+                end_at_step=end_at_step,
+                return_with_leftover_noise=return_noise_mode,
+                denoise=1.0,
+            )
+        except Exception as exc:
+            raise RuntimeError(f"{stage_name}: sampling failed.") from exc
+
+        return result
+
+
+class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
     """
     Advanced Triple-stage KSampler node for Wan2.2 split models with Lightning LoRA.
 
@@ -243,6 +442,13 @@ class TripleKSamplerWan22LightningAdvanced:
                         )
                     }
                 ),
+                "dry_run": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Enable dry run mode for testing configurations without actual sampling."
+                    }
+                ),
             }
         }
 
@@ -255,190 +461,6 @@ class TripleKSamplerWan22LightningAdvanced:
         "Wan2.2 split models with Lightning LoRA. Supports both step-based and "
         "sigma boundary-based model switching."
     )
-
-    def _get_model_patcher(self) -> ModelSamplingSD3:
-        """
-        Create ModelSamplingSD3 instance for patching models.
-
-        Returns:
-            ModelSamplingSD3 instance for model patching.
-        """
-        return ModelSamplingSD3()
-
-    def _canonicalize_shift(self, value: float) -> float:
-        """
-        Convert shift value to canonical Python float.
-
-        Args:
-            value: Shift value input (may be tensor or other numeric type).
-
-        Returns:
-            Canonical float representation.
-        """
-        return float(value)
-
-    def _calculate_percentage(self, numerator: float, denominator: float) -> float:
-        """
-        Calculate percentage with single digit precision for logging.
-
-        Args:
-            numerator: Numerator value.
-            denominator: Denominator value.
-
-        Returns:
-            Float percentage between 0.0 and 100.0 with one decimal place.
-        """
-        if denominator == 0:
-            return 0.0
-        percentage = (float(numerator) / float(denominator)) * 100.0
-        return round(max(0.0, min(100.0, percentage)), 1)
-
-    def _format_stage_range(self, start: int, end: int, total: int) -> str:
-        """
-        Format human-readable stage range with denoising percentages.
-
-        Args:
-            start: Starting step (inclusive).
-            end: Ending step (exclusive).
-            total: Total steps in schedule.
-
-        Returns:
-            Formatted string like "steps 0-4 of 24 (denoising 0%-16%)".
-        """
-        start_safe = int(max(0, start))
-        end_safe = int(max(start_safe, end))
-        total_safe = int(max(1, total))
-        
-        pct_start = self._calculate_percentage(start_safe, total_safe)
-        pct_end = self._calculate_percentage(end_safe, total_safe)
-        
-        return f"steps {start_safe}-{end_safe} of {total_safe} (denoising {pct_start:.1f}%–{pct_end:.1f}%)"
-
-    def _compute_boundary_switching_step(
-        self,
-        sampling: Any,
-        scheduler: str,
-        steps: int,
-        boundary: float
-    ) -> int:
-        """
-        Compute model switching step based on sigma boundary.
-
-        Args:
-            sampling: Model sampling object.
-            scheduler: Scheduler name.
-            steps: Number of lightning steps.
-            boundary: Timestep boundary (0-1).
-
-        Returns:
-            Switching step index in range [0, steps-1].
-        """
-        sigmas = comfy.samplers.calculate_sigmas(sampling, scheduler, steps)
-        timesteps: List[float] = []
-        
-        # Convert tensor sigmas to timesteps
-        for sigma in sigmas:
-            timestep = sampling.timestep(float(sigma.item())) / 1000.0
-            timesteps.append(timestep)
-        
-        switching_step = steps
-        # Start at index 1 to match previous behavior
-        for i, timestep in enumerate(timesteps[1:], start=1):
-            if timestep < float(boundary):
-                switching_step = i
-                break
-        
-        # Ensure switching step is within valid range
-        if switching_step >= steps:
-            switching_step = steps - 1
-            
-        return int(switching_step)
-
-    def _run_sampling_stage(
-        self,
-        model: Any,
-        positive: Any,
-        negative: Any,
-        latent: Dict[str, torch.Tensor],
-        seed: int,
-        steps: int,
-        cfg: float,
-        sampler_name: str,
-        scheduler: str,
-        start_at_step: int,
-        end_at_step: int,
-        add_noise: bool,
-        return_with_leftover_noise: bool,
-        stage_name: str = "Sampler",
-        stage_info: str = None
-    ) -> Tuple[Dict[str, torch.Tensor]]:
-        """
-        Execute a single sampling stage using KSamplerAdvanced.
-
-        Args:
-            model: Model to use for sampling.
-            positive: Positive conditioning.
-            negative: Negative conditioning.
-            latent: Input latent dictionary.
-            seed: Random seed.
-            steps: Total steps in schedule.
-            cfg: CFG scale.
-            sampler_name: Sampler algorithm name.
-            scheduler: Noise scheduler name.
-            start_at_step: Starting step (inclusive).
-            end_at_step: Ending step (exclusive).
-            add_noise: Whether to add initial noise.
-            return_with_leftover_noise: Whether to return with remaining noise.
-            stage_name: Stage identifier for logging.
-            stage_info: Optional stage information to log right before sampling.
-
-        Returns:
-            Tuple containing the resulting latent dictionary.
-
-        Raises:
-            RuntimeError: If sampling fails.
-        """
-        if start_at_step >= end_at_step:
-            raise ValueError(f"{stage_name}: start_at_step ({start_at_step}) >= end_at_step ({end_at_step}). Check your step configuration - this indicates invalid sampling range.")
-        
-        # Add visual separator before all sampling begins
-        bare_logger.info("")
-
-        # Log stage info right before sampling to appear above progress bar
-        if stage_info:
-            stage_type = stage_name.replace("Stage 1", "Base denoising").replace("Stage 2", "Lightning high model").replace("Stage 3", "Lightning low model")
-            logger.info("%s: %s - %s", stage_name, stage_type, stage_info)
-
-        # Dry run mode: skip actual sampling and return mock data
-        if ENABLE_DRY_RUN:
-            # Return the input latent unchanged for dry run
-            return (latent,)
-
-        advanced_sampler = nodes.KSamplerAdvanced()
-        add_noise_mode = "enable" if add_noise else "disable"
-        return_noise_mode = "enable" if return_with_leftover_noise else "disable"
-
-        try:
-            result = advanced_sampler.sample(
-                model=model,
-                add_noise=add_noise_mode,
-                noise_seed=seed,
-                steps=steps,
-                cfg=cfg,
-                sampler_name=sampler_name,
-                scheduler=scheduler,
-                positive=positive,
-                negative=negative,
-                latent_image=latent,
-                start_at_step=start_at_step,
-                end_at_step=end_at_step,
-                return_with_leftover_noise=return_noise_mode,
-                denoise=1.0
-            )
-        except Exception as exc:
-            raise RuntimeError(f"{stage_name}: sampling failed.") from exc
-
-        return result
 
     def sample(
         self,
@@ -459,7 +481,8 @@ class TripleKSamplerWan22LightningAdvanced:
         scheduler: str,
         switch_strategy: str,
         switch_boundary: float = 0.875,
-        switch_step: int = -1
+        switch_step: int = -1,
+        dry_run: bool = False
     ) -> Tuple[Dict[str, torch.Tensor]]:
         """
         Execute triple-stage cascade sampling with comprehensive logging.
@@ -483,6 +506,7 @@ class TripleKSamplerWan22LightningAdvanced:
             switch_strategy: Strategy for lightning model switching.
             switch_boundary: Sigma boundary for manual boundary strategy (optional).
             switch_step: Manual switch step for manual switch step strategy (optional).
+            dry_run: Enable dry run mode for testing configurations without sampling (optional).
 
         Returns:
             Tuple containing final latent dictionary.
@@ -504,7 +528,7 @@ class TripleKSamplerWan22LightningAdvanced:
             logger.info("  switch_boundary=%.3f", switch_boundary)
         elif switch_strategy == "Manual switch step":
             logger.info("  switch_step=%d", switch_step)
-        logger.info("Constants: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", MIN_TOTAL_STEPS, ENABLE_DRY_RUN)
+        logger.info("Constants: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", MIN_TOTAL_STEPS, dry_run)
         bare_logger.info("")
 
         # Validate parameters
@@ -686,17 +710,17 @@ class TripleKSamplerWan22LightningAdvanced:
                         logger.warning(
                             "Stage overlap detected! Stage 1 ends at %.1f%% but Stage 2 starts at %.1f%% "
                             "(%.1f%% overlap). For perfect alignment, use base_steps=%d "
-                            "(multiple of %d), or use base_steps=-1 for auto-calculation.",
+                            "(multiple of lightning_start), or use base_steps=-1 for auto-calculation.",
                             stage1_end_pct * 100, stage2_start_pct * 100, overlap_pct,
-                            lower_multiple, lightning_start
+                            lower_multiple
                         )
                     else:
                         logger.warning(
                             "Stage overlap detected! Stage 1 ends at %.1f%% but Stage 2 starts at %.1f%% "
                             "(%.1f%% overlap). For perfect alignment, use base_steps=%d or %d "
-                            "(multiples of %d), or use base_steps=-1 for auto-calculation.",
+                            "(multiples of lightning_start), or use base_steps=-1 for auto-calculation.",
                             stage1_end_pct * 100, stage2_start_pct * 100, overlap_pct,
-                            lower_multiple, upper_multiple, lightning_start
+                            lower_multiple, upper_multiple
                         )
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
             
@@ -714,6 +738,7 @@ class TripleKSamplerWan22LightningAdvanced:
                 end_at_step=base_steps,
                 add_noise=stage1_add_noise,
                 return_with_leftover_noise=True,
+                dry_run=dry_run,
                 stage_name="Stage 1",
                 stage_info=stage1_info
             )
@@ -743,6 +768,7 @@ class TripleKSamplerWan22LightningAdvanced:
                 end_at_step=switch_step_final,
                 add_noise=stage2_add_noise,
                 return_with_leftover_noise=True,
+                dry_run=dry_run,
                 stage_name="Stage 2",
                 stage_info=stage2_info
             )
@@ -766,6 +792,7 @@ class TripleKSamplerWan22LightningAdvanced:
             end_at_step=lightning_steps,
             add_noise=stage3_add_noise,
             return_with_leftover_noise=False,
+            dry_run=dry_run,
             stage_name="Stage 3",
             stage_info=stage3_info
         )
@@ -774,13 +801,13 @@ class TripleKSamplerWan22LightningAdvanced:
         bare_logger.info("")
 
         # Log dry run summary if enabled
-        if ENABLE_DRY_RUN:
+        if dry_run:
             logger.info("[DRY RUN] Complete - All calculations performed, no actual sampling executed")
 
         return stage3_result
 
 
-class TripleKSamplerWan22Lightning:
+class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
     """
     Main Triple-stage KSampler node for Wan2.2 split models with Lightning LoRA.
 
@@ -914,22 +941,6 @@ class TripleKSamplerWan22Lightning:
 
         return max(1, int(base_steps)), total_base_steps, method
 
-    def _calculate_percentage(self, numerator: float, denominator: float) -> float:
-        """
-        Calculate percentage with single digit precision for logging.
-
-        Args:
-            numerator: Numerator value.
-            denominator: Denominator value.
-
-        Returns:
-            Float percentage between 0.0 and 100.0 with one decimal place.
-        """
-        if denominator == 0:
-            return 0.0
-        percentage = (float(numerator) / float(denominator)) * 100.0
-        return round(max(0.0, min(100.0, percentage)), 1)
-
     def sample(
         self,
         high_model: Any,
@@ -983,9 +994,8 @@ class TripleKSamplerWan22Lightning:
                 base_steps, total_base_steps, method.replace("_", " "), pct_end
             )
 
-        # Delegate to advanced implementation
-        runner = TripleKSamplerWan22LightningAdvanced()
-        return runner.sample(
+        # Delegate to parent (advanced) implementation
+        return super().sample(
             high_model=high_model,
             high_model_lx2v=high_model_lx2v,
             low_model_lx2v=low_model_lx2v,

@@ -59,6 +59,10 @@ output/
 CLAUDE.md
 .claude/
 
+# Type stubs (VSCode development only)
+stubs/
+*.pyi
+
 # Testing
 tests/
 pytest.ini
