@@ -70,7 +70,7 @@ Example workflows are included: `example_workflow_t2v.json` and `example_workflo
 2. Connect conditioning and latent inputs
 
 3. Configure sampling parameters:
-   - `shift`: Sigma shift (typically 5.0)
+   - `sigma_shift`: Sigma shift value
    - `base_cfg`: CFG for base denoising (typically 3.5)
    - `lightning_steps`: Total lightning steps (typically 8)
 
@@ -85,9 +85,9 @@ Example workflows are included: `example_workflow_t2v.json` and `example_workflo
 
 ### Parameter Guidelines
 
-- **shift**: 5.0 is recommended for most cases
-- **base_cfg**: 3.5 works well for most prompts
-- **lightning_steps**: 8 steps provide good quality/speed balance
+- **sigma_shift**: Adjust based on your specific models and use case
+- **base_cfg**: Experiment with different values based on your prompt
+- **lightning_steps**: Balance between quality and speed for your needs
 - **boundary**: 0.875 for text-to-video, 0.900 for image-to-video
 
 ## Model Switching Strategies
