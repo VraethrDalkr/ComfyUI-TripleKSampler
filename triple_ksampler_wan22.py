@@ -686,16 +686,21 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 _MIN_TOTAL_STEPS, lightning_start, lightning_steps
             )
 
-            if method == "mathematical_search":
-                logger.info("Auto-calculated base_steps = %d, total_base_steps = %d (mathematical search)",
-                           base_steps, optimal_total_base_steps)
-            elif method == "simple_math":
-                logger.info("Auto-calculated base_steps = %d, total_base_steps = %d (simple math)",
-                           base_steps, optimal_total_base_steps)
-            else:  # fallback
-                logger.info("Auto-calculated base_steps = %d (fallback - no perfect alignment found)",
-                           base_steps)
-                optimal_total_base_steps = None  # Will trigger fallback calculation later
+            # Only log auto-calculation if we're actually using base_steps (Stage 1 will run)
+            if lightning_start > 0:
+                if method == "mathematical_search":
+                    logger.info("Auto-calculated base_steps = %d, total_base_steps = %d (mathematical search)",
+                               base_steps, optimal_total_base_steps)
+                elif method == "simple_math":
+                    logger.info("Auto-calculated base_steps = %d, total_base_steps = %d (simple math)",
+                               base_steps, optimal_total_base_steps)
+                else:  # fallback
+                    logger.info("Auto-calculated base_steps = %d (fallback - no perfect alignment found)",
+                               base_steps)
+                    optimal_total_base_steps = None  # Will trigger fallback calculation later
+            else:
+                # Lightning-only mode: base_steps not applicable
+                logger.info("Lightning-only mode: base_steps not applicable (Stage 1 skipped)")
 
         
         # Validate base_steps after potential auto-calculation
@@ -807,7 +812,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                     logger.debug("Perfect alignment verified (Stage1/Stage2 transition point matches)")
                 else:
                     # Fallback: recalculate using unified function (should rarely happen)
-                    _, total_base_steps, fallback_method = self._calculate_perfect_alignment(
+                    _, total_base_steps, _ = self._calculate_perfect_alignment(
                         _MIN_TOTAL_STEPS, lightning_start, lightning_steps
                     )
                     logger.debug("Fallback calculation: total_base_steps=%d", total_base_steps)
@@ -971,27 +976,6 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
         "Optimized interface with auto-computed parameters for ease of use."
     )
 
-    def _compute_base_steps(self, lightning_steps: int) -> Tuple[int, int, str]:
-        """
-        Compute base_steps and total_base_steps for the simple node.
-
-        Uses the unified perfect alignment function with lightning_start=1.
-
-        Args:
-            lightning_steps: Number of lightning steps.
-
-        Returns:
-            Tuple of (base_steps, total_base_steps, method) with perfect alignment.
-        """
-        if lightning_steps <= 0:
-            return 1, _MIN_TOTAL_STEPS, "simple_math"
-
-        # Simple node always uses lightning_start=1
-        base_steps, total_base_steps, method = self._calculate_perfect_alignment(
-            _MIN_TOTAL_STEPS, 1, lightning_steps
-        )
-
-        return max(1, int(base_steps)), total_base_steps, method
 
     def sample(
         self,
@@ -1033,20 +1017,7 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
         Raises:
             ValueError: If parameters are invalid.
         """
-        # Fixed parameters for simplified interface
-        lightning_start = 1
-        base_steps, total_base_steps, method = self._compute_base_steps(lightning_steps)
-
-        # Log auto-computed parameters for user feedback
-        if lightning_start > 0:
-            pct_end = self._calculate_percentage(base_steps, total_base_steps)
-            logger.info(
-                "Simple node: base_steps = %d, total_base_steps = %d (%s). "
-                "Stage 1 will denoise approx. 0%%–%.1f%%",
-                base_steps, total_base_steps, method.replace("_", " "), pct_end
-            )
-
-        # Delegate to parent (advanced) implementation
+        # Delegate to parent (advanced) implementation with fixed/auto-calculated parameters
         return super().sample(
             base_high=base_high,
             lightning_high=lightning_high,
@@ -1056,9 +1027,9 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
             latent_image=latent_image,
             seed=seed,
             sigma_shift=sigma_shift,
-            base_steps=base_steps,
+            base_steps=-1,  # Auto-calculate in parent
             base_cfg=base_cfg,
-            lightning_start=lightning_start,
+            lightning_start=1,  # Fixed for simple node
             lightning_steps=lightning_steps,
             lightning_cfg=1.0,  # Fixed CFG for lightning stages in simple node
             sampler_name=sampler_name,
