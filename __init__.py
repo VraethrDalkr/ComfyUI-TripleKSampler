@@ -12,7 +12,7 @@ from .triple_ksampler_wan22 import (
     NODE_DISPLAY_NAME_MAPPINGS,
 )
 
-__version__ = "0.3.1"
+__version__ = "0.6.0"
 __author__ = "VraethrDalkr"
 __description__ = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 

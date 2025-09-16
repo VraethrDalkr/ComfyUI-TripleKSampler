@@ -1,0 +1,18 @@
+# ComfyUI-TripleKSampler Configuration Template
+# Copy this file to 'config.toml' and customize as needed.
+# The config.toml file will not be overwritten during updates.
+
+[sampling]
+# Quality threshold for base model auto-calculation
+# Ensures auto-computed total_base_steps provide sufficient sampling quality
+base_quality_threshold = 20
+
+[boundaries]
+# Default sigma boundaries for different model types used when sigma boundary-based model switching is enabled
+default_t2v = 0.875  # Text-to-video models
+default_i2v = 0.900  # Image-to-video models
+
+[logging]
+# Logging level: DEBUG shows all messages including input parameters and internal calculations
+# INFO shows essential workflow information. WARNING and ERROR are always shown.
+level = "INFO"
