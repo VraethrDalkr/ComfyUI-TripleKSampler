@@ -409,17 +409,17 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         """
         return {
             "required": {
-                "high_model": (
+                "base_high": (
                     "MODEL",
-                    {"tooltip": "High-noise model for base denoising."}
+                    {"tooltip": "Base high-noise model for Stage 1 denoising."}
                 ),
-                "high_model_lx2v": (
+                "lightning_high": (
                     "MODEL",
-                    {"tooltip": "Lightning high model (LightX2V)."}
+                    {"tooltip": "Lightning high-noise model for Stage 2."}
                 ),
-                "low_model_lx2v": (
+                "lightning_low": (
                     "MODEL",
-                    {"tooltip": "Lightning low model (LightX2V)."}
+                    {"tooltip": "Lightning low-noise model for Stage 3."}
                 ),
                 "positive": (
                     "CONDITIONING",
@@ -560,9 +560,9 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
 
     def sample(
         self,
-        high_model: Any,
-        high_model_lx2v: Any,
-        low_model_lx2v: Any,
+        base_high: Any,
+        lightning_high: Any,
+        lightning_low: Any,
         positive: Any,
         negative: Any,
         latent_image: Dict[str, torch.Tensor],
@@ -584,9 +584,9 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         Execute triple-stage cascade sampling with comprehensive logging.
 
         Args:
-            high_model: High-noise model for base denoising.
-            high_model_lx2v: Lightning high model.
-            low_model_lx2v: Lightning low model.
+            base_high: Base high-noise model for Stage 1 denoising.
+            lightning_high: Lightning high-noise model for Stage 2.
+            lightning_low: Lightning low-noise model for Stage 3.
             positive: Positive prompt conditioning.
             negative: Negative prompt conditioning.
             latent_image: Input latent image.
@@ -613,7 +613,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         # Log all input parameters for debugging
         bare_logger.info("")
         logger.debug("=== TripleKSampler Node - Input Parameters ===")
-        logger.debug("Models: high_model, high_model_lx2v, low_model_lx2v")
+        logger.debug("Models: base_high, lightning_high, lightning_low")
         logger.debug("Sampling: seed=%d, sigma_shift=%.3f", seed, sigma_shift)
         logger.debug("Base stage: base_steps=%d, base_cfg=%.1f", base_steps, base_cfg)
         logger.debug("Lightning: lightning_start=%d, lightning_steps=%d, lightning_cfg=%.1f",
@@ -692,9 +692,9 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         patcher = self._get_model_patcher()
         shift_value = self._canonicalize_shift(sigma_shift)
         
-        patched_high = patcher.patch(high_model, shift_value)[0]
-        patched_high_lx2v = patcher.patch(high_model_lx2v, shift_value)[0]
-        patched_low_lx2v = patcher.patch(low_model_lx2v, shift_value)[0]
+        patched_base_high = patcher.patch(base_high, shift_value)[0]
+        patched_lightning_high = patcher.patch(lightning_high, shift_value)[0]
+        patched_lightning_low = patcher.patch(lightning_low, shift_value)[0]
 
         # Determine model switching strategy based on dropdown selection
         if switch_strategy == "Manual switch step":
@@ -708,7 +708,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             else:  # Manual boundary
                 boundary_value = switch_boundary
             
-            sampling = patched_high_lx2v.get_model_object("model_sampling")
+            sampling = patched_lightning_high.get_model_object("model_sampling")
             switch_step_calculated = self._compute_boundary_switching_step(
                 sampling, scheduler, lightning_steps, boundary_value
             )
@@ -797,7 +797,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
             
             stage1_result = self._run_sampling_stage(
-                model=patched_high,
+                model=patched_base_high,
                 positive=positive,
                 negative=negative,
                 latent=latent_image,
@@ -827,7 +827,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             )
             
             stage2_result = self._run_sampling_stage(
-                model=patched_high_lx2v,
+                model=patched_lightning_high,
                 positive=positive,
                 negative=negative,
                 latent=stage1_output,
@@ -851,7 +851,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         stage3_info = self._format_stage_range(stage3_start, lightning_steps, lightning_steps)
         
         stage3_result = self._run_sampling_stage(
-            model=patched_low_lx2v,
+            model=patched_lightning_low,
             positive=positive,
             negative=negative,
             latent=stage2_output,
@@ -902,17 +902,17 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
         """
         return {
             "required": {
-                "high_model": (
+                "base_high": (
                     "MODEL",
-                    {"tooltip": "High-noise model for base denoising."}
+                    {"tooltip": "Base high-noise model for Stage 1 denoising."}
                 ),
-                "high_model_lx2v": (
+                "lightning_high": (
                     "MODEL",
-                    {"tooltip": "Lightning high model (LightX2V)."}
+                    {"tooltip": "Lightning high-noise model for Stage 2."}
                 ),
-                "low_model_lx2v": (
+                "lightning_low": (
                     "MODEL",
-                    {"tooltip": "Lightning low model (LightX2V)."}
+                    {"tooltip": "Lightning low-noise model for Stage 3."}
                 ),
                 "positive": (
                     "CONDITIONING",
@@ -1015,9 +1015,9 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
 
     def sample(
         self,
-        high_model: Any,
-        high_model_lx2v: Any,
-        low_model_lx2v: Any,
+        base_high: Any,
+        lightning_high: Any,
+        lightning_low: Any,
         positive: Any,
         negative: Any,
         latent_image: Dict[str, torch.Tensor],
@@ -1033,9 +1033,9 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
         Execute simplified triple-stage sampling pipeline.
 
         Args:
-            high_model: High-noise model for base denoising.
-            high_model_lx2v: Lightning high model.
-            low_model_lx2v: Lightning low model.
+            base_high: Base high-noise model for Stage 1 denoising.
+            lightning_high: Lightning high-noise model for Stage 2.
+            lightning_low: Lightning low-noise model for Stage 3.
             positive: Positive prompt conditioning.
             negative: Negative prompt conditioning.
             latent_image: Input latent image.
@@ -1068,9 +1068,9 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
 
         # Delegate to parent (advanced) implementation
         return super().sample(
-            high_model=high_model,
-            high_model_lx2v=high_model_lx2v,
-            low_model_lx2v=low_model_lx2v,
+            base_high=base_high,
+            lightning_high=lightning_high,
+            lightning_low=lightning_low,
             positive=positive,
             negative=negative,
             latent_image=latent_image,

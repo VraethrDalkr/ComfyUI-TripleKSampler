@@ -62,10 +62,10 @@ A complete example workflow is provided in [`example_workflow.json`](example_wor
 The example workflow includes:
 
 1. **Model Setup:**
-   - `wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors` (Base model)
-   - `wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors` (Low noise model)
-   - `Wan2.2-Lightning_T2V-v1.1-A14B-4steps-lora_HIGH_fp16.safetensors`
-   - `Wan2.2-Lightning_T2V-v1.1-A14B-4steps-lora_LOW_fp16.safetensors`
+   - `wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors` (base_high input)
+   - `wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors` (for Lightning low LoRA)
+   - `Wan2.2-Lightning_T2V-v1.1-A14B-4steps-lora_HIGH_fp16.safetensors` (lightning_high input)
+   - `Wan2.2-Lightning_T2V-v1.1-A14B-4steps-lora_LOW_fp16.safetensors` (lightning_low input)
 
 2. **Sampling Comparison:**
    - **Main TripleKSampler:** Simplified interface with auto-computed parameters
@@ -88,9 +88,9 @@ The example workflow includes:
 ### Basic Workflow
 
 1. Load your Wan2.2 split models:
-   - High-noise base model
-   - Lightning high model (LightX2V)
-   - Lightning low model (LightX2V)
+   - Base high-noise model
+   - Lightning high-noise model
+   - Lightning low-noise model
 
 2. Connect conditioning and latent inputs
 
