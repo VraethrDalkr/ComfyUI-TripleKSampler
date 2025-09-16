@@ -138,21 +138,53 @@ Full control over sigma boundary value. Shows switch_boundary parameter for manu
 
 ## Configuration
 
-The package includes a `constants.py` file with user-configurable parameters:
+The package uses a JSON-based configuration system that avoids git conflicts when updating. Configuration priority:
 
-```python
-# Quality threshold for automatic base step calculation
-MIN_TOTAL_STEPS = 20
+1. **`config.json`** (user's custom settings, gitignored)
+2. **`config.example.json`** (template with defaults, tracked in git)
+3. **Hardcoded defaults** (final fallback)
 
-# Default sigma boundaries for different model types
-DEFAULT_BOUNDARY_T2V = 0.875  # Text-to-video models
-DEFAULT_BOUNDARY_I2V = 0.900  # Image-to-video models
+### Setup
 
-# Logging configuration
-LOG_LEVEL = "INFO"  # DEBUG shows detailed internal calculations, INFO shows essential workflow info
+**Automatic Setup (Recommended):**
+1. Install the node and restart ComfyUI
+2. The node automatically creates `config.json` from the template on first run
+3. Edit `config.json` with your preferred values
+4. Restart ComfyUI to apply changes
+
+**Manual Setup (Optional):**
+1. Copy the template: `cp config.example.json config.json`
+2. Edit `config.json` with your preferred values
+3. Restart ComfyUI to apply changes
+
+### Configuration Options
+
+```json
+{
+  "sampling": {
+    "min_total_steps": 20
+  },
+  "boundaries": {
+    "default_t2v": 0.875,
+    "default_i2v": 0.900
+  },
+  "logging": {
+    "level": "INFO"
+  }
+}
 ```
 
-Users can modify these values to tune sampling behavior without changing the core implementation.
+**Parameters:**
+- **`min_total_steps`**: Quality threshold for automatic base step calculation
+- **`default_t2v`**: Default sigma boundary for text-to-video models (0.875)
+- **`default_i2v`**: Default sigma boundary for image-to-video models (0.900)
+- **`level`**: Logging level (`"DEBUG"` shows detailed calculations, `"INFO"` shows essential workflow info)
+
+**Benefits:**
+- ✅ **Auto-Creation**: Config file automatically created on first run for easy customization
+- ✅ **No Git Conflicts**: Your `config.json` is gitignored and won't conflict during updates
+- ✅ **Safe Updates**: Pull latest changes without losing your custom settings
+- ✅ **Easy Backup**: Copy your `config.json` to preserve settings across installations
 
 ## Auto-Calculation Methods
 
@@ -200,7 +232,7 @@ The nodes provide detailed logging including:
 - Auto-computed parameter values (both nodes when applicable)
 - Stage overlap warnings with actionable suggestions
 
-**Log Levels**: Set `LOG_LEVEL="DEBUG"` in `constants.py` for detailed internal calculations, or `LOG_LEVEL="INFO"` (default) for essential workflow information. Warning and error messages always appear regardless of the log level setting.
+**Log Levels**: Set `"level": "DEBUG"` in `config.json` for detailed internal calculations, or `"level": "INFO"` (default) for essential workflow information. Warning and error messages always appear regardless of the log level setting.
 
 ## Development
 
@@ -215,7 +247,7 @@ The nodes provide detailed logging including:
   - `TripleKSamplerWan22Base`: Shared functionality and core sampling logic
   - `TripleKSamplerWan22LightningAdvanced`: Advanced node with full parameter control
   - `TripleKSamplerWan22Lightning`: Simple node with streamlined interface
-- `constants.py`: Configuration constants and user-tunable parameters
+- `config.example.json`: Configuration template with default values
 - `web/triple_ksampler_ui.js`: JavaScript for dynamic UI parameter visibility
 
 ### Testing
@@ -253,7 +285,7 @@ To test the nodes are properly loaded:
 - **BREAKING**: Node names swapped for better UX - Simple variant is now main "TripleKSampler"
 - **Enhanced Advanced Node**: Auto-calculation options for both base_steps and switch_step (-1 for auto)
 - **Lightning-start Awareness**: Auto-calculation accounts for lightning processing timing
-- **Configuration File**: Moved constants to separate `constants.py` with proper documentation
+- **JSON Configuration**: User-configurable settings in `config.json` to avoid git conflicts
 - **Quality Threshold**: MIN_TOTAL_STEPS set to 20 for optimal quality/performance balance
 
 ### v0.1.0

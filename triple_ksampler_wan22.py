@@ -13,8 +13,11 @@ Classes:
 
 from __future__ import annotations
 
+import json
 import logging
 import math
+import os
+import shutil
 from typing import Any, Dict, List, Optional, Tuple
 
 import comfy.model_sampling
@@ -23,17 +26,95 @@ import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 
-from .constants import MIN_TOTAL_STEPS, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V, LOG_LEVEL
+# Hardcoded default values
+_DEFAULT_MIN_TOTAL_STEPS = 20
+_DEFAULT_BOUNDARY_T2V = 0.875
+_DEFAULT_BOUNDARY_I2V = 0.900
+_DEFAULT_LOG_LEVEL = "INFO"
+
+
+def _load_config() -> Dict[str, Any]:
+    """
+    Load configuration from config.json, auto-creating it from template if needed.
+
+    Priority order:
+    1. config.json (user's custom settings, gitignored)
+    2. config.example.json (template with defaults, tracked in git) - auto-copied to config.json
+    3. Hardcoded defaults (final fallback)
+
+    Auto-creation behavior:
+    - If config.json doesn't exist but config.example.json does, copies template to config.json
+    - This provides a ready-to-customize configuration file on first run
+    - Users can then edit config.json without affecting git tracking
+
+    Returns:
+        Dict containing configuration values with the following structure:
+        {
+            "sampling": {"min_total_steps": int},
+            "boundaries": {"default_t2v": float, "default_i2v": float},
+            "logging": {"level": str}
+        }
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    user_config_path = os.path.join(script_dir, "config.json")
+    template_config_path = os.path.join(script_dir, "config.example.json")
+
+    # Auto-create config.json from template if it doesn't exist
+    if not os.path.exists(user_config_path) and os.path.exists(template_config_path):
+        try:
+            shutil.copy2(template_config_path, user_config_path)
+            print(f"[TripleKSampler] Created config.json from template for easy customization")
+        except (IOError, OSError) as e:
+            print(f"[TripleKSampler] Warning: Failed to create config.json from template: {e}")
+
+    # Try user config first (gitignored, possibly just created)
+    if os.path.exists(user_config_path):
+        try:
+            with open(user_config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                return config
+        except (json.JSONDecodeError, IOError) as e:
+            # Fall through to template config if user config is invalid
+            print(f"[TripleKSampler] Warning: Failed to load user config.json: {e}")
+
+    # Try template config (tracked in git)
+    if os.path.exists(template_config_path):
+        try:
+            with open(template_config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                return config
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"[TripleKSampler] Warning: Failed to load config.example.json: {e}")
+
+    # Final fallback to hardcoded values
+    return {
+        "sampling": {"min_total_steps": _DEFAULT_MIN_TOTAL_STEPS},
+        "boundaries": {
+            "default_t2v": _DEFAULT_BOUNDARY_T2V,
+            "default_i2v": _DEFAULT_BOUNDARY_I2V
+        },
+        "logging": {"level": _DEFAULT_LOG_LEVEL}
+    }
+
+
+# Load configuration once at module import
+_CONFIG = _load_config()
+
+# Extract configuration values with safe fallbacks
+_MIN_TOTAL_STEPS = _CONFIG.get("sampling", {}).get("min_total_steps", _DEFAULT_MIN_TOTAL_STEPS)
+_DEFAULT_BOUNDARY_T2V = _CONFIG.get("boundaries", {}).get("default_t2v", _DEFAULT_BOUNDARY_T2V)
+_DEFAULT_BOUNDARY_I2V = _CONFIG.get("boundaries", {}).get("default_i2v", _DEFAULT_BOUNDARY_I2V)
+_LOG_LEVEL = _CONFIG.get("logging", {}).get("level", _DEFAULT_LOG_LEVEL)
 
 
 def _get_log_level() -> int:
     """
-    Convert LOG_LEVEL string from constants to logging level constant.
+    Convert LOG_LEVEL string from configuration to logging level constant.
 
     Only supports DEBUG and INFO levels. WARNING and ERROR messages
     are always shown regardless of LOG_LEVEL setting.
     """
-    if LOG_LEVEL.upper() == "DEBUG":
+    if _LOG_LEVEL.upper() == "DEBUG":
         return logging.DEBUG
     else:
         # Default to INFO for any other value (INFO, WARNING, ERROR, invalid, etc.)
@@ -543,7 +624,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             logger.debug("  switch_boundary=%.3f", switch_boundary)
         elif switch_strategy == "Manual switch step":
             logger.debug("  switch_step=%d", switch_step)
-        logger.debug("Constants: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", MIN_TOTAL_STEPS, dry_run)
+        logger.debug("Configuration: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", _MIN_TOTAL_STEPS, dry_run)
         bare_logger.info("")
 
         # Validate parameters
@@ -568,7 +649,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         if base_steps == -1:
             # Use unified perfect alignment calculation
             base_steps, optimal_total_base_steps, method = _calculate_perfect_alignment(
-                MIN_TOTAL_STEPS, lightning_start, lightning_steps
+                _MIN_TOTAL_STEPS, lightning_start, lightning_steps
             )
 
             if method == "mathematical_search":
@@ -621,9 +702,9 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         elif switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
             # Select appropriate boundary value
             if switch_strategy == "T2V boundary":
-                boundary_value = DEFAULT_BOUNDARY_T2V
+                boundary_value = _DEFAULT_BOUNDARY_T2V
             elif switch_strategy == "I2V boundary":
-                boundary_value = DEFAULT_BOUNDARY_I2V
+                boundary_value = _DEFAULT_BOUNDARY_I2V
             else:  # Manual boundary
                 boundary_value = switch_boundary
             
@@ -651,8 +732,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         else:
             # Log switching strategy
             if switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
-                boundary_value = DEFAULT_BOUNDARY_T2V if switch_strategy == "T2V boundary" else (
-                    DEFAULT_BOUNDARY_I2V if switch_strategy == "I2V boundary" else switch_boundary
+                boundary_value = _DEFAULT_BOUNDARY_T2V if switch_strategy == "T2V boundary" else (
+                    _DEFAULT_BOUNDARY_I2V if switch_strategy == "I2V boundary" else switch_boundary
                 )
                 logger.info(
                     "Model switching: %s (boundary = %s) → switch at step %d of %d",
@@ -693,7 +774,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 else:
                     # Fallback: recalculate using unified function (should rarely happen)
                     _, total_base_steps, fallback_method = _calculate_perfect_alignment(
-                        MIN_TOTAL_STEPS, lightning_start, lightning_steps
+                        _MIN_TOTAL_STEPS, lightning_start, lightning_steps
                     )
                     logger.debug("Fallback calculation: total_base_steps=%d", total_base_steps)
             else:
@@ -708,10 +789,10 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 if stage1_end_pct > stage2_start_pct:
                     overlap_pct = (stage1_end_pct - stage2_start_pct) * 100
                     logger.warning(
-                        "Stage overlap detected! Stage 1 ends at %.1f%% but Stage 2 starts at %.1f%% "
-                        "(%.1f%% overlap). For perfect alignment, use multiples of lightning_start for base_steps, "
-                        "try even lightning_steps, or use base_steps=-1 for auto-calculation.",
-                        stage1_end_pct * 100, stage2_start_pct * 100, overlap_pct
+                        "Stage overlap (%.1f%%) detected! For perfect alignment, try one of the following: "
+                        "multiples of lightning_start for base_steps, even number for lightning_steps, "
+                        "or base_steps=-1 for auto-calculation.",
+                        overlap_pct
                     )
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
             
@@ -804,7 +885,7 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
 
     This node provides an optimized interface to the triple-stage sampling
     process with auto-computed parameters. Uses fixed lightning_start=1 and
-    auto-computed base_steps to ensure base_steps * lightning_steps >= _MIN_TOTAL_STEPS
+    auto-computed base_steps to ensure base_steps * lightning_steps >= MIN_TOTAL_STEPS
     for optimal quality.
 
     This streamlined interface exposes the most essential parameters while
@@ -923,11 +1004,11 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
             Tuple of (base_steps, total_base_steps, method) with perfect alignment.
         """
         if lightning_steps <= 0:
-            return 1, MIN_TOTAL_STEPS, "simple_math"
+            return 1, _MIN_TOTAL_STEPS, "simple_math"
 
         # Simple node always uses lightning_start=1
         base_steps, total_base_steps, method = _calculate_perfect_alignment(
-            MIN_TOTAL_STEPS, 1, lightning_steps
+            _MIN_TOTAL_STEPS, 1, lightning_steps
         )
 
         return max(1, int(base_steps)), total_base_steps, method

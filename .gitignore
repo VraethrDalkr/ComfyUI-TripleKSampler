@@ -59,6 +59,9 @@ output/
 CLAUDE.md
 .claude/
 
+# User configuration
+config.json
+
 # Type stubs (VSCode development only)
 stubs/
 *.pyi
