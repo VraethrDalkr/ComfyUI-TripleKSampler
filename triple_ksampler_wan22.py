@@ -141,42 +141,6 @@ bare_logger.propagate = False
 bare_logger.setLevel(logging.INFO)
 
 
-def _calculate_perfect_alignment(min_total_steps: int, lightning_start: int, lightning_steps: int) -> Tuple[int, int, str]:
-    """
-    Calculate base_steps and total_base_steps for perfect stage alignment.
-
-    This unified function handles both simple (lightning_start=1) and complex cases
-    efficiently, ensuring Stage 1 end percentage exactly equals Stage 2 start percentage.
-
-    Args:
-        min_total_steps: Minimum total steps requirement.
-        lightning_start: Starting step in lightning schedule.
-        lightning_steps: Total lightning steps.
-
-    Returns:
-        Tuple of (base_steps, total_base_steps, method_used).
-        method_used is one of: "simple_math", "mathematical_search", "fallback"
-    """
-    if lightning_start == 1:
-        # Simple case: direct calculation guarantees perfect alignment
-        base_steps = math.ceil(min_total_steps / lightning_steps)
-        total_base_steps = base_steps * lightning_steps
-        return base_steps, total_base_steps, "simple_math"
-    else:
-        # Complex case: search for perfect alignment
-        search_limit = min_total_steps + lightning_steps
-        for candidate_total in range(min_total_steps, search_limit):
-            if (candidate_total * lightning_start) % lightning_steps == 0:
-                base_steps = candidate_total * lightning_start // lightning_steps
-                return base_steps, candidate_total, "mathematical_search"
-
-        # Fallback if no perfect alignment found (very rare)
-        base_steps = math.ceil(min_total_steps * lightning_start / lightning_steps)
-        optimal_total = base_steps * lightning_steps / lightning_start
-        total_base_steps = max(int(math.ceil(optimal_total)), min_total_steps)
-        return base_steps, total_base_steps, "fallback"
-
-
 class TripleKSamplerWan22Base:
     """
     Base class for Triple-stage KSampler nodes with shared functionality.
@@ -184,6 +148,129 @@ class TripleKSamplerWan22Base:
     Contains all the common methods and logic for triple-stage sampling,
     including model patching, stage execution, and validation.
     """
+
+    # Shared class attributes for ComfyUI
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("LATENT",)
+    FUNCTION = "sample"
+    CATEGORY = "TripleKSampler/sampling"
+
+    @classmethod
+    def _get_base_input_types(cls) -> Dict[str, Any]:
+        """
+        Get shared INPUT_TYPES used by both node variants.
+
+        Returns:
+            Dict containing the base input parameters shared by both nodes.
+        """
+        return {
+            "base_high": (
+                "MODEL",
+                {"tooltip": "Base high-noise model for Stage 1 denoising."}
+            ),
+            "lightning_high": (
+                "MODEL",
+                {"tooltip": "Lightning high-noise model for Stage 2."}
+            ),
+            "lightning_low": (
+                "MODEL",
+                {"tooltip": "Lightning low-noise model for Stage 3."}
+            ),
+            "positive": (
+                "CONDITIONING",
+                {"tooltip": "Positive prompt conditioning."}
+            ),
+            "negative": (
+                "CONDITIONING",
+                {"tooltip": "Negative prompt conditioning."}
+            ),
+            "latent_image": (
+                "LATENT",
+                {"tooltip": "Latent image to denoise."}
+            ),
+            "seed": (
+                "INT",
+                {
+                    "default": 0,
+                    "min": 0,
+                    "max": 0xffffffffffffffff,
+                    "tooltip": "Random seed for noise generation."
+                }
+            ),
+            "sigma_shift": (
+                "FLOAT",
+                {
+                    "default": 5.0,
+                    "min": 0.0,
+                    "max": 100.0,
+                    "step": 0.01,
+                    "tooltip": "Sigma shift applied to model sampling (default 5.0)."
+                }
+            ),
+            "base_cfg": (
+                "FLOAT",
+                {
+                    "default": 3.5,
+                    "min": 0.0,
+                    "max": 100.0,
+                    "step": 0.1,
+                    "tooltip": "CFG scale for Stage 1."
+                }
+            ),
+            "lightning_steps": (
+                "INT",
+                {
+                    "default": 8,
+                    "min": 2,
+                    "max": 100,
+                    "tooltip": "Total steps for lightning stages."
+                }
+            ),
+            "sampler_name": (
+                comfy.samplers.KSampler.SAMPLERS,
+                {"tooltip": "Sampler to use."}
+            ),
+            "scheduler": (
+                comfy.samplers.KSampler.SCHEDULERS,
+                {"tooltip": "Scheduler for noise."}
+            ),
+        }
+
+    @classmethod
+    def _calculate_perfect_alignment(cls, min_total_steps: int, lightning_start: int, lightning_steps: int) -> Tuple[int, int, str]:
+        """
+        Calculate base_steps and total_base_steps for perfect stage alignment.
+
+        This unified function handles both simple (lightning_start=1) and complex cases
+        efficiently, ensuring Stage 1 end percentage exactly equals Stage 2 start percentage.
+
+        Args:
+            min_total_steps: Minimum total steps requirement.
+            lightning_start: Starting step in lightning schedule.
+            lightning_steps: Total lightning steps.
+
+        Returns:
+            Tuple of (base_steps, total_base_steps, method_used).
+            method_used is one of: "simple_math", "mathematical_search", "fallback"
+        """
+        if lightning_start == 1:
+            # Simple case: direct calculation guarantees perfect alignment
+            base_steps = math.ceil(min_total_steps / lightning_steps)
+            total_base_steps = base_steps * lightning_steps
+            return base_steps, total_base_steps, "simple_math"
+        else:
+            # Complex case: search for perfect alignment
+            search_limit = min_total_steps + lightning_steps
+            for candidate_total in range(min_total_steps, search_limit):
+                if (candidate_total * lightning_start) % lightning_steps == 0:
+                    base_steps = candidate_total * lightning_start // lightning_steps
+                    return base_steps, candidate_total, "mathematical_search"
+
+            # Fallback if no perfect alignment found (very rare)
+            base_steps = math.ceil(min_total_steps * lightning_start / lightning_steps)
+            optimal_total = base_steps * lightning_steps / lightning_start
+            total_base_steps = max(int(math.ceil(optimal_total)), min_total_steps)
+            return base_steps, total_base_steps, "fallback"
 
     def _get_model_patcher(self) -> ModelSamplingSD3:
         """
@@ -407,51 +494,23 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             Dict containing required input parameters with their types,
             defaults, ranges, and tooltips.
         """
+        # Get base shared input types
+        base_inputs = cls._get_base_input_types()
+
+        # Build required parameters in original order
         return {
             "required": {
-                "base_high": (
-                    "MODEL",
-                    {"tooltip": "Base high-noise model for Stage 1 denoising."}
-                ),
-                "lightning_high": (
-                    "MODEL",
-                    {"tooltip": "Lightning high-noise model for Stage 2."}
-                ),
-                "lightning_low": (
-                    "MODEL",
-                    {"tooltip": "Lightning low-noise model for Stage 3."}
-                ),
-                "positive": (
-                    "CONDITIONING",
-                    {"tooltip": "Positive prompt conditioning."}
-                ),
-                "negative": (
-                    "CONDITIONING",
-                    {"tooltip": "Negative prompt conditioning."}
-                ),
-                "latent_image": (
-                    "LATENT",
-                    {"tooltip": "Latent image to denoise."}
-                ),
-                "seed": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xffffffffffffffff,
-                        "tooltip": "Random seed for noise generation."
-                    }
-                ),
-                "sigma_shift": (
-                    "FLOAT",
-                    {
-                        "default": 5.0,
-                        "min": 0.0,
-                        "max": 100.0,
-                        "step": 0.01,
-                        "tooltip": "Sigma shift applied to model sampling (default 5.0)."
-                    }
-                ),
+                # Models
+                "base_high": base_inputs["base_high"],
+                "lightning_high": base_inputs["lightning_high"],
+                "lightning_low": base_inputs["lightning_low"],
+                # Conditioning
+                "positive": base_inputs["positive"],
+                "negative": base_inputs["negative"],
+                "latent_image": base_inputs["latent_image"],
+                # Base parameters
+                "seed": base_inputs["seed"],
+                "sigma_shift": base_inputs["sigma_shift"],
                 "base_steps": (
                     "INT",
                     {
@@ -461,16 +520,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         "tooltip": "Number of base (Stage 1) steps. Use -1 for auto-calculation based on lightning_start."
                     }
                 ),
-                "base_cfg": (
-                    "FLOAT",
-                    {
-                        "default": 3.5,
-                        "min": 0.0,
-                        "max": 100.0,
-                        "step": 0.1,
-                        "tooltip": "CFG scale for Stage 1."
-                    }
-                ),
+                "base_cfg": base_inputs["base_cfg"],
+                # Lightning parameters
                 "lightning_start": (
                     "INT",
                     {
@@ -480,15 +531,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         "tooltip": "Start step inside lightning schedule (0 to skip Stage 1)."
                     }
                 ),
-                "lightning_steps": (
-                    "INT",
-                    {
-                        "default": 8,
-                        "min": 2,
-                        "max": 100,
-                        "tooltip": "Total steps for lightning stages."
-                    }
-                ),
+                "lightning_steps": base_inputs["lightning_steps"],
                 "lightning_cfg": (
                     "FLOAT",
                     {
@@ -499,14 +542,9 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         "tooltip": "CFG scale for Stage 2 and Stage 3 (lightning stages)."
                     }
                 ),
-                "sampler_name": (
-                    comfy.samplers.KSampler.SAMPLERS,
-                    {"tooltip": "Sampler to use."}
-                ),
-                "scheduler": (
-                    comfy.samplers.KSampler.SCHEDULERS,
-                    {"tooltip": "Scheduler for noise."}
-                ),
+                # Sampler parameters
+                "sampler_name": base_inputs["sampler_name"],
+                "scheduler": base_inputs["scheduler"],
                 "switch_strategy": (
                     ["50% of steps", "Manual switch step", "T2V boundary", "I2V boundary", "Manual boundary"],
                     {
@@ -548,10 +586,6 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             }
         }
 
-    RETURN_TYPES = ("LATENT",)
-    RETURN_NAMES = ("LATENT",)
-    FUNCTION = "sample"
-    CATEGORY = "TripleKSampler/sampling"
     DESCRIPTION = (
         "Advanced triple-stage cascade sampler with full parameter control for "
         "Wan2.2 split models with Lightning LoRA. Supports both step-based and "
@@ -648,7 +682,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         # Auto-calculate base_steps if requested
         if base_steps == -1:
             # Use unified perfect alignment calculation
-            base_steps, optimal_total_base_steps, method = _calculate_perfect_alignment(
+            base_steps, optimal_total_base_steps, method = self._calculate_perfect_alignment(
                 _MIN_TOTAL_STEPS, lightning_start, lightning_steps
             )
 
@@ -773,7 +807,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                     logger.debug("Perfect alignment verified (Stage1/Stage2 transition point matches)")
                 else:
                     # Fallback: recalculate using unified function (should rarely happen)
-                    _, total_base_steps, fallback_method = _calculate_perfect_alignment(
+                    _, total_base_steps, fallback_method = self._calculate_perfect_alignment(
                         _MIN_TOTAL_STEPS, lightning_start, lightning_steps
                     )
                     logger.debug("Fallback calculation: total_base_steps=%d", total_base_steps)
@@ -900,78 +934,28 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
         Returns:
             Dict containing required input parameters with reduced complexity.
         """
+        # Get base shared input types
+        base_inputs = cls._get_base_input_types()
+
+        # Build required parameters in original order
         return {
             "required": {
-                "base_high": (
-                    "MODEL",
-                    {"tooltip": "Base high-noise model for Stage 1 denoising."}
-                ),
-                "lightning_high": (
-                    "MODEL",
-                    {"tooltip": "Lightning high-noise model for Stage 2."}
-                ),
-                "lightning_low": (
-                    "MODEL",
-                    {"tooltip": "Lightning low-noise model for Stage 3."}
-                ),
-                "positive": (
-                    "CONDITIONING",
-                    {"tooltip": "Positive prompt conditioning."}
-                ),
-                "negative": (
-                    "CONDITIONING",
-                    {"tooltip": "Negative prompt conditioning."}
-                ),
-                "latent_image": (
-                    "LATENT",
-                    {"tooltip": "Latent image to denoise."}
-                ),
-                "seed": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xffffffffffffffff,
-                        "tooltip": "Random seed for noise generation."
-                    }
-                ),
-                "sigma_shift": (
-                    "FLOAT",
-                    {
-                        "default": 5.0,
-                        "min": 0.0,
-                        "max": 100.0,
-                        "step": 0.01,
-                        "tooltip": "Sigma shift applied to model sampling."
-                    }
-                ),
-                "base_cfg": (
-                    "FLOAT",
-                    {
-                        "default": 3.5,
-                        "min": 0.0,
-                        "max": 100.0,
-                        "step": 0.1,
-                        "tooltip": "CFG scale for Stage 1."
-                    }
-                ),
-                "lightning_steps": (
-                    "INT",
-                    {
-                        "default": 8,
-                        "min": 2,
-                        "max": 100,
-                        "tooltip": "Total steps for lightning stages."
-                    }
-                ),
-                "sampler_name": (
-                    comfy.samplers.KSampler.SAMPLERS,
-                    {"tooltip": "Sampler to use."}
-                ),
-                "scheduler": (
-                    comfy.samplers.KSampler.SCHEDULERS,
-                    {"tooltip": "Scheduler for noise."}
-                ),
+                # Models
+                "base_high": base_inputs["base_high"],
+                "lightning_high": base_inputs["lightning_high"],
+                "lightning_low": base_inputs["lightning_low"],
+                # Conditioning
+                "positive": base_inputs["positive"],
+                "negative": base_inputs["negative"],
+                "latent_image": base_inputs["latent_image"],
+                # Base parameters
+                "seed": base_inputs["seed"],
+                "sigma_shift": base_inputs["sigma_shift"],
+                "base_cfg": base_inputs["base_cfg"],
+                "lightning_steps": base_inputs["lightning_steps"],
+                # Sampler parameters
+                "sampler_name": base_inputs["sampler_name"],
+                "scheduler": base_inputs["scheduler"],
                 "switch_strategy": (
                     ["50% of steps", "T2V boundary", "I2V boundary"],
                     {
@@ -982,10 +966,6 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
             }
         }
 
-    RETURN_TYPES = ("LATENT",)
-    RETURN_NAMES = ("LATENT",)
-    FUNCTION = "sample"
-    CATEGORY = "TripleKSampler/sampling"
     DESCRIPTION = (
         "Triple-stage sampler for Wan2.2 split models with Lightning LoRA. "
         "Optimized interface with auto-computed parameters for ease of use."
@@ -1007,7 +987,7 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
             return 1, _MIN_TOTAL_STEPS, "simple_math"
 
         # Simple node always uses lightning_start=1
-        base_steps, total_base_steps, method = _calculate_perfect_alignment(
+        base_steps, total_base_steps, method = self._calculate_perfect_alignment(
             _MIN_TOTAL_STEPS, 1, lightning_steps
         )
 
