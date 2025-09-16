@@ -23,17 +23,32 @@ import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 
-from .constants import MIN_TOTAL_STEPS, LOGGER_PREFIX, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V
+from .constants import MIN_TOTAL_STEPS, DEFAULT_BOUNDARY_T2V, DEFAULT_BOUNDARY_I2V, LOG_LEVEL
+
+
+def _get_log_level() -> int:
+    """
+    Convert LOG_LEVEL string from constants to logging level constant.
+
+    Only supports DEBUG and INFO levels. WARNING and ERROR messages
+    are always shown regardless of LOG_LEVEL setting.
+    """
+    if LOG_LEVEL.upper() == "DEBUG":
+        return logging.DEBUG
+    else:
+        # Default to INFO for any other value (INFO, WARNING, ERROR, invalid, etc.)
+        return logging.INFO
+
 
 # Configure module logger
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     handler = logging.StreamHandler()
-    formatter = logging.Formatter(f"{LOGGER_PREFIX} %(levelname)s: %(message)s")
+    formatter = logging.Formatter("[TripleKSampler] %(levelname)s: %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 logger.propagate = False
-logger.setLevel(logging.INFO)
+logger.setLevel(_get_log_level())
 
 # Configure bare logger for clean empty line separators
 bare_logger = logging.getLogger("TripleKSampler.separator")
@@ -516,19 +531,19 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         """
         # Log all input parameters for debugging
         bare_logger.info("")
-        logger.info("=== TripleKSampler Advanced Node - Input Parameters ===")
-        logger.info("Models: high_model, high_model_lx2v, low_model_lx2v")
-        logger.info("Sampling: seed=%d, sigma_shift=%.3f", seed, sigma_shift)
-        logger.info("Base stage: base_steps=%d, base_cfg=%.1f", base_steps, base_cfg)
-        logger.info("Lightning: lightning_start=%d, lightning_steps=%d, lightning_cfg=%.1f",
+        logger.debug("=== TripleKSampler Node - Input Parameters ===")
+        logger.debug("Models: high_model, high_model_lx2v, low_model_lx2v")
+        logger.debug("Sampling: seed=%d, sigma_shift=%.3f", seed, sigma_shift)
+        logger.debug("Base stage: base_steps=%d, base_cfg=%.1f", base_steps, base_cfg)
+        logger.debug("Lightning: lightning_start=%d, lightning_steps=%d, lightning_cfg=%.1f",
                    lightning_start, lightning_steps, lightning_cfg)
-        logger.info("Sampler: %s, scheduler: %s", sampler_name, scheduler)
-        logger.info("Strategy: %s", switch_strategy)
+        logger.debug("Sampler: %s, scheduler: %s", sampler_name, scheduler)
+        logger.debug("Strategy: %s", switch_strategy)
         if switch_strategy == "Manual boundary":
-            logger.info("  switch_boundary=%.3f", switch_boundary)
+            logger.debug("  switch_boundary=%.3f", switch_boundary)
         elif switch_strategy == "Manual switch step":
-            logger.info("  switch_step=%d", switch_step)
-        logger.info("Constants: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", MIN_TOTAL_STEPS, dry_run)
+            logger.debug("  switch_step=%d", switch_step)
+        logger.debug("Constants: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", MIN_TOTAL_STEPS, dry_run)
         bare_logger.info("")
 
         # Validate parameters
@@ -557,20 +572,16 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             )
 
             if method == "mathematical_search":
-                logger.info("Auto-calculated base_steps = %d, total_base_steps = %d (perfect alignment method)",
+                logger.info("Auto-calculated base_steps = %d, total_base_steps = %d (mathematical search)",
                            base_steps, optimal_total_base_steps)
-                logger.info("DEBUG: Found perfect alignment using mathematical search")
             elif method == "simple_math":
-                logger.info("Auto-calculated base_steps = %d, total_base_steps = %d (simple math method)",
+                logger.info("Auto-calculated base_steps = %d, total_base_steps = %d (simple math)",
                            base_steps, optimal_total_base_steps)
-                logger.info("DEBUG: Perfect alignment using simple math (lightning_start=1)")
             else:  # fallback
-                logger.info("Auto-calculated base_steps = %d (fallback method - no perfect alignment found)",
+                logger.info("Auto-calculated base_steps = %d (fallback - no perfect alignment found)",
                            base_steps)
-                logger.info("DEBUG: Using fallback calculation")
                 optimal_total_base_steps = None  # Will trigger fallback calculation later
 
-            logger.info("DEBUG: base_steps_auto_calculated flag = %s", base_steps_auto_calculated)
         
         # Validate base_steps after potential auto-calculation
         if lightning_start > 0 and base_steps < 1:
@@ -673,55 +684,35 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 # Use pre-calculated optimal value from unified alignment function
                 if 'optimal_total_base_steps' in locals() and optimal_total_base_steps is not None:
                     total_base_steps = optimal_total_base_steps
-                    logger.info("DEBUG: Using pre-calculated perfect alignment total_base_steps=%d", total_base_steps)
+                    logger.debug("Using pre-calculated alignment (total_base_steps=%d)", total_base_steps)
 
                     # Verify perfect alignment (should always be exact)
                     stage1_end_pct = base_steps / total_base_steps
                     stage2_start_pct = lightning_start / lightning_steps
-                    logger.info("DEBUG: Perfect alignment verification: Stage1 %.3f%% = Stage2 %.3f%% (diff=%.6f)",
-                               stage1_end_pct * 100, stage2_start_pct * 100,
-                               abs(stage1_end_pct - stage2_start_pct))
+                    logger.debug("Perfect alignment verified (Stage1/Stage2 transition point matches)")
                 else:
                     # Fallback: recalculate using unified function (should rarely happen)
                     _, total_base_steps, fallback_method = _calculate_perfect_alignment(
                         MIN_TOTAL_STEPS, lightning_start, lightning_steps
                     )
-                    logger.info("DEBUG: Fallback recalculation using %s - total_base_steps=%d",
-                               fallback_method, total_base_steps)
+                    logger.debug("Fallback calculation: total_base_steps=%d", total_base_steps)
             else:
                 # Manual base_steps: use standard calculation to match Stage 2 start
                 total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
                 total_base_steps = max(total_base_steps, base_steps)
-                logger.info("DEBUG: Manual path - total_base_steps=%d", total_base_steps)
+                logger.debug("Manual calculation: total_base_steps=%d", total_base_steps)
 
                 # Check for stage overlap and warn user
                 stage1_end_pct = base_steps / total_base_steps
                 stage2_start_pct = lightning_start / lightning_steps
                 if stage1_end_pct > stage2_start_pct:
                     overlap_pct = (stage1_end_pct - stage2_start_pct) * 100
-
-                    # Suggest multiples of lightning_start for perfect alignment
-                    current_multiple = base_steps // lightning_start
-                    lower_multiple = max(current_multiple * lightning_start, lightning_start)
-                    upper_multiple = (current_multiple + 1) * lightning_start
-
-                    # Handle edge case where both suggestions are the same
-                    if lower_multiple == upper_multiple:
-                        logger.warning(
-                            "Stage overlap detected! Stage 1 ends at %.1f%% but Stage 2 starts at %.1f%% "
-                            "(%.1f%% overlap). For perfect alignment, use base_steps=%d "
-                            "(multiple of lightning_start), or use base_steps=-1 for auto-calculation.",
-                            stage1_end_pct * 100, stage2_start_pct * 100, overlap_pct,
-                            lower_multiple
-                        )
-                    else:
-                        logger.warning(
-                            "Stage overlap detected! Stage 1 ends at %.1f%% but Stage 2 starts at %.1f%% "
-                            "(%.1f%% overlap). For perfect alignment, use base_steps=%d or %d "
-                            "(multiples of lightning_start), or use base_steps=-1 for auto-calculation.",
-                            stage1_end_pct * 100, stage2_start_pct * 100, overlap_pct,
-                            lower_multiple, upper_multiple
-                        )
+                    logger.warning(
+                        "Stage overlap detected! Stage 1 ends at %.1f%% but Stage 2 starts at %.1f%% "
+                        "(%.1f%% overlap). For perfect alignment, use multiples of lightning_start for base_steps, "
+                        "try even lightning_steps, or use base_steps=-1 for auto-calculation.",
+                        stage1_end_pct * 100, stage2_start_pct * 100, overlap_pct
+                    )
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
             
             stage1_result = self._run_sampling_stage(

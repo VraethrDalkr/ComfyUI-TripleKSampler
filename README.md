@@ -149,11 +149,31 @@ DEFAULT_BOUNDARY_T2V = 0.875  # Text-to-video models
 DEFAULT_BOUNDARY_I2V = 0.900  # Image-to-video models
 
 # Logging configuration
-LOGGER_PREFIX = "[TripleKSampler]"
-LOG_LEVEL = "INFO"
+LOG_LEVEL = "INFO"  # DEBUG shows detailed internal calculations, INFO shows essential workflow info
 ```
 
 Users can modify these values to tune sampling behavior without changing the core implementation.
+
+## Auto-Calculation Methods
+
+When you set `base_steps=-1`, the nodes automatically calculate optimal values using one of three methods:
+
+### Simple Math
+**When**: `lightning_start=1` (most common case)
+**Behavior**: Direct mathematical calculation that guarantees perfect alignment between Stage 1 and Stage 2 transition points
+**Result**: Always achieves perfect stage alignment with minimal computation
+
+### Mathematical Search
+**When**: `lightning_start>1` (advanced configurations)
+**Behavior**: Searches through possible values within constraints to find perfect alignment
+**Result**: Usually achieves perfect stage alignment, highly efficient search algorithm
+
+### Fallback
+**When**: No perfect alignment can be found within search constraints (very rare)
+**Behavior**: Uses approximation to get as close as possible to optimal alignment
+**Result**: Near-optimal alignment when perfect alignment is mathematically impossible
+
+**Log Messages**: You'll see these method names in the console output when using auto-calculation, helping you understand which approach was used for your specific configuration.
 
 ## Advanced Features
 
@@ -178,6 +198,9 @@ The nodes provide detailed logging including:
 - Stage execution with step ranges and denoising percentages
 - Model switching strategy and computed switch points
 - Auto-computed parameter values (both nodes when applicable)
+- Stage overlap warnings with actionable suggestions
+
+**Log Levels**: Set `LOG_LEVEL="DEBUG"` in `constants.py` for detailed internal calculations, or `LOG_LEVEL="INFO"` (default) for essential workflow information. Warning and error messages always appear regardless of the log level setting.
 
 ## Development
 

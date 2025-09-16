@@ -18,5 +18,7 @@ DEFAULT_BOUNDARY_T2V = 0.875  # Text-to-video models
 DEFAULT_BOUNDARY_I2V = 0.900  # Image-to-video models
 
 # Logging configuration
-LOGGER_PREFIX = "[TripleKSampler]"
-LOG_LEVEL = "INFO"  # Can be: DEBUG, INFO, WARNING, ERROR
+# DEBUG: Shows all messages including input parameters and internal calculations
+# INFO: Shows essential workflow information (auto-calculation, stage execution, model switching)
+# WARNING and ERROR messages are always shown regardless of LOG_LEVEL setting
+LOG_LEVEL = "DEBUG"
