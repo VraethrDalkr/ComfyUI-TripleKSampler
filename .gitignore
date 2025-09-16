@@ -60,7 +60,7 @@ CLAUDE.md
 .claude/
 
 # User configuration
-config.json
+config.toml
 
 # Type stubs (VSCode development only)
 stubs/

@@ -1,7 +1,7 @@
 """
 Triple-stage KSampler for Wan2.2 split models with Lightning LoRA.
 
-This module implements sophisticated triple-stage sampling nodes for ComfyUI,
+This module implements triple-stage sampling nodes for ComfyUI,
 specifically designed for Wan2.2 split models with Lightning LoRA integration.
 The sampling process includes base denoising, lightning high-model processing,
 and lightning low-model refinement stages.
@@ -35,17 +35,17 @@ _DEFAULT_LOG_LEVEL = "INFO"
 
 def _load_config() -> Dict[str, Any]:
     """
-    Load configuration from config.json, auto-creating it from template if needed.
+    Load configuration from config.toml, auto-creating it from template if needed.
 
     Priority order:
-    1. config.json (user's custom settings, gitignored)
-    2. config.example.json (template with defaults, tracked in git) - auto-copied to config.json
+    1. config.toml (user's custom settings, gitignored)
+    2. config.example.toml (template with defaults, tracked in git) - auto-copied to config.toml
     3. Hardcoded defaults (final fallback)
 
     Auto-creation behavior:
-    - If config.json doesn't exist but config.example.json does, copies template to config.json
+    - If config.toml doesn't exist but config.example.toml does, copies template to config.toml
     - This provides a ready-to-customize configuration file on first run
-    - Users can then edit config.json without affecting git tracking
+    - Users can then edit config.toml without affecting git tracking
 
     Returns:
         Dict containing configuration values with the following structure:
@@ -55,36 +55,54 @@ def _load_config() -> Dict[str, Any]:
             "logging": {"level": str}
         }
     """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    user_config_path = os.path.join(script_dir, "config.json")
-    template_config_path = os.path.join(script_dir, "config.example.json")
+    # Try to import TOML parser
+    try:
+        import tomllib  # Python 3.11+
+    except ImportError:
+        try:
+            import tomli as tomllib  # Fallback for older Python
+        except ImportError:
+            print(f"[TripleKSampler] Warning: TOML support not available. Install with: pip install tomli")
+            # Fall back to hardcoded defaults
+            return {
+                "sampling": {"min_total_steps": _DEFAULT_MIN_TOTAL_STEPS},
+                "boundaries": {
+                    "default_t2v": _DEFAULT_BOUNDARY_T2V,
+                    "default_i2v": _DEFAULT_BOUNDARY_I2V
+                },
+                "logging": {"level": _DEFAULT_LOG_LEVEL}
+            }
 
-    # Auto-create config.json from template if it doesn't exist
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    user_config_path = os.path.join(script_dir, "config.toml")
+    template_config_path = os.path.join(script_dir, "config.example.toml")
+
+    # Auto-create config.toml from template if it doesn't exist
     if not os.path.exists(user_config_path) and os.path.exists(template_config_path):
         try:
             shutil.copy2(template_config_path, user_config_path)
-            print(f"[TripleKSampler] Created config.json from template for easy customization")
+            print(f"[TripleKSampler] Created config.toml from template for easy customization")
         except (IOError, OSError) as e:
-            print(f"[TripleKSampler] Warning: Failed to create config.json from template: {e}")
+            print(f"[TripleKSampler] Warning: Failed to create config.toml from template: {e}")
 
     # Try user config first (gitignored, possibly just created)
     if os.path.exists(user_config_path):
         try:
-            with open(user_config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
+            with open(user_config_path, "rb") as f:
+                config = tomllib.load(f)
                 return config
-        except (json.JSONDecodeError, IOError) as e:
+        except (tomllib.TOMLDecodeError, IOError) as e:
             # Fall through to template config if user config is invalid
-            print(f"[TripleKSampler] Warning: Failed to load user config.json: {e}")
+            print(f"[TripleKSampler] Warning: Failed to load user config.toml: {e}")
 
     # Try template config (tracked in git)
     if os.path.exists(template_config_path):
         try:
-            with open(template_config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
+            with open(template_config_path, "rb") as f:
+                config = tomllib.load(f)
                 return config
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"[TripleKSampler] Warning: Failed to load config.example.json: {e}")
+        except (tomllib.TOMLDecodeError, IOError) as e:
+            print(f"[TripleKSampler] Warning: Failed to load config.example.toml: {e}")
 
     # Final fallback to hardcoded values
     return {
@@ -467,7 +485,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
     """
     Advanced Triple-stage KSampler node for Wan2.2 split models with Lightning LoRA.
 
-    This advanced node provides complete parameter control for sophisticated
+    This node provides complete parameter control for
     three-stage sampling process:
     1. Base denoising with high-noise model
     2. Lightning high-model processing
@@ -543,6 +561,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                     }
                 ),
                 # Sampler parameters
+                "sampler_name": base_inputs["sampler_name"],
+                "scheduler": base_inputs["scheduler"],
                 "dry_run": (
                     "BOOLEAN",
                     {
@@ -550,8 +570,6 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         "tooltip": "Enable dry run mode for testing configurations without actual sampling."
                     }
                 ),
-                "sampler_name": base_inputs["sampler_name"],
-                "scheduler": base_inputs["scheduler"],
                 "switch_strategy": (
                     ["50% of steps", "Manual switch step", "T2V boundary", "I2V boundary", "Manual boundary"],
                     {
@@ -645,7 +663,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             ValueError: If parameters are invalid.
         """
         # Log all input parameters for debugging
-        bare_logger.info("")
+        if _LOG_LEVEL == "DEBUG":
+            bare_logger.info("")
         logger.debug("=== TripleKSampler Node - Input Parameters ===")
         logger.debug("Models: base_high, lightning_high, lightning_low")
         logger.debug("Sampling: seed=%d, sigma_shift=%.3f", seed, sigma_shift)
@@ -659,7 +678,6 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         elif switch_strategy == "Manual switch step":
             logger.debug("  switch_step=%d", switch_step)
         logger.debug("Configuration: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", _MIN_TOTAL_STEPS, dry_run)
-        bare_logger.info("")
 
         # Validate parameters
         if lightning_steps < 2:
@@ -679,9 +697,11 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         # Track if base_steps was auto-calculated for smart method selection
         base_steps_auto_calculated = (base_steps == -1)
 
-        # Auto-calculate base_steps if requested
+        bare_logger.info("")  # separator before calculation logs
+
+        # Calculate base_steps and total_base_steps (both auto and manual cases)
         if base_steps == -1:
-            # Use unified perfect alignment calculation
+            # Auto-calculate base_steps
             base_steps, optimal_total_base_steps, method = self._calculate_perfect_alignment(
                 _MIN_TOTAL_STEPS, lightning_start, lightning_steps
             )
@@ -701,6 +721,28 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             else:
                 # Lightning-only mode: base_steps not applicable
                 logger.info("Lightning-only mode: base_steps not applicable (Stage 1 skipped)")
+        else:
+            # Manual base_steps: check for lightning-only mode
+            if lightning_start == 0 and base_steps == 0:
+                # Lightning-only mode with manual base_steps=0
+                logger.info("Lightning-only mode: base_steps not applicable (Stage 1 skipped)")
+                optimal_total_base_steps = 0  # Not used, but set for consistency
+            else:
+                # Manual base_steps: calculate total_base_steps
+                optimal_total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
+                optimal_total_base_steps = max(optimal_total_base_steps, base_steps)
+                logger.info("Auto-calculated total_base_steps = %d for manual base_steps = %d", optimal_total_base_steps, base_steps)
+
+                # Check for stage overlap and warn user
+                if lightning_start > 0 and base_steps > 0 and optimal_total_base_steps > 0:  # Only check overlap if Stage 1 will actually run with steps
+                    stage1_end_pct = base_steps / optimal_total_base_steps
+                    stage2_start_pct = lightning_start / lightning_steps
+                    if stage1_end_pct > stage2_start_pct:
+                        overlap_pct = (stage1_end_pct - stage2_start_pct) * 100
+                        logger.warning(
+                            "Stage 1 and 2 overlap (%.1f%%) detected! For perfect alignment, use base_steps=-1 (auto-calculation) or adjust lightning parameters.",
+                            overlap_pct
+                        )
 
         
         # Validate base_steps after potential auto-calculation
@@ -737,7 +779,13 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
 
         # Determine model switching strategy based on dropdown selection
         if switch_strategy == "Manual switch step":
-            switch_step_calculated = switch_step if switch_step != -1 else lightning_steps // 2
+            if switch_step == -1:
+                # switch_step=-1 means auto-calculate using 50% strategy
+                switch_step_calculated = lightning_steps // 2
+                effective_strategy = "50% of steps (auto)"
+            else:
+                switch_step_calculated = switch_step
+                effective_strategy = "Manual switch step"
         elif switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
             # Select appropriate boundary value
             if switch_strategy == "T2V boundary":
@@ -746,13 +794,15 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 boundary_value = _DEFAULT_BOUNDARY_I2V
             else:  # Manual boundary
                 boundary_value = switch_boundary
-            
+
             sampling = patched_lightning_high.get_model_object("model_sampling")
             switch_step_calculated = self._compute_boundary_switching_step(
                 sampling, scheduler, lightning_steps, boundary_value
             )
+            effective_strategy = switch_strategy
         else:  # "50% of steps" strategy
             switch_step_calculated = math.ceil(lightning_steps / 2)
+            effective_strategy = switch_strategy
 
         switch_step_final = int(switch_step_calculated)
 
@@ -776,12 +826,12 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 )
                 logger.info(
                     "Model switching: %s (boundary = %s) → switch at step %d of %d",
-                    switch_strategy, boundary_value, switch_step_final, lightning_steps
+                    effective_strategy, boundary_value, switch_step_final, lightning_steps
                 )
             else:
                 logger.info(
                     "Model switching: %s → switch at step %d of %d",
-                    switch_strategy, switch_step_final, lightning_steps
+                    effective_strategy, switch_step_final, lightning_steps
                 )
 
             if lightning_start == switch_step_final:
@@ -799,39 +849,23 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             logger.info("Stage 1: Skipped (Lightning-only mode)")
             stage1_output = latent_image
         else:
-            # Calculate total_base_steps
-            if base_steps_auto_calculated:
-                # Use pre-calculated optimal value from unified alignment function
-                if 'optimal_total_base_steps' in locals() and optimal_total_base_steps is not None:
-                    total_base_steps = optimal_total_base_steps
+            # Use pre-calculated total_base_steps (both auto and manual cases)
+            if 'optimal_total_base_steps' in locals() and optimal_total_base_steps is not None:
+                total_base_steps = optimal_total_base_steps
+                if base_steps_auto_calculated:
                     logger.debug("Using pre-calculated alignment (total_base_steps=%d)", total_base_steps)
-
                     # Verify perfect alignment (should always be exact)
                     stage1_end_pct = base_steps / total_base_steps
                     stage2_start_pct = lightning_start / lightning_steps
                     logger.debug("Perfect alignment verified (Stage1/Stage2 transition point matches)")
                 else:
-                    # Fallback: recalculate using unified function (should rarely happen)
-                    _, total_base_steps, _ = self._calculate_perfect_alignment(
-                        _MIN_TOTAL_STEPS, lightning_start, lightning_steps
-                    )
-                    logger.debug("Fallback calculation: total_base_steps=%d", total_base_steps)
+                    logger.debug("Manual calculation: total_base_steps=%d", total_base_steps)
             else:
-                # Manual base_steps: use standard calculation to match Stage 2 start
-                total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
-                total_base_steps = max(total_base_steps, base_steps)
-                logger.info("Auto-calculated total_base_steps = %d for manual base_steps = %d", total_base_steps, base_steps)
-                logger.debug("Manual calculation: total_base_steps=%d", total_base_steps)
-
-                # Check for stage overlap and warn user
-                stage1_end_pct = base_steps / total_base_steps
-                stage2_start_pct = lightning_start / lightning_steps
-                if stage1_end_pct > stage2_start_pct:
-                    overlap_pct = (stage1_end_pct - stage2_start_pct) * 100
-                    logger.warning(
-                        "Stage 1 and 2 overlap (%.1f%%) detected! For perfect alignment, use base_steps=-1 (auto-calculation) or adjust lightning parameters.",
-                        overlap_pct
-                    )
+                # Fallback: recalculate using unified function (should rarely happen)
+                _, total_base_steps, _ = self._calculate_perfect_alignment(
+                    _MIN_TOTAL_STEPS, lightning_start, lightning_steps
+                )
+                logger.debug("Fallback calculation: total_base_steps=%d", total_base_steps)
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
             
             stage1_result = self._run_sampling_stage(
@@ -913,6 +947,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         # Log dry run summary if enabled
         if dry_run:
             logger.info("[DRY RUN] Complete - All calculations performed, no actual sampling executed")
+            bare_logger.info("")
 
         return stage3_result
 
@@ -921,7 +956,7 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
     """
     Main Triple-stage KSampler node for Wan2.2 split models with Lightning LoRA.
 
-    This node provides an optimized interface to the triple-stage sampling
+    This node provides a simplified interface to the triple-stage sampling
     process with auto-computed parameters. Uses fixed lightning_start=1 and
     auto-computed base_steps to ensure base_steps * lightning_steps >= MIN_TOTAL_STEPS
     for optimal quality.
@@ -972,7 +1007,7 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
 
     DESCRIPTION = (
         "Triple-stage sampler for Wan2.2 split models with Lightning LoRA. "
-        "Optimized interface with auto-computed parameters for ease of use."
+        "Simplified interface with auto-computed parameters for ease of use."
     )
 
 
