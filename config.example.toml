@@ -3,9 +3,9 @@
 # The config.toml file will not be overwritten during updates.
 
 [sampling]
-# Quality threshold for automatic base step calculation
-# Ensures auto-computed base_steps result in sufficient total sampling steps for good quality output
-min_total_steps = 20
+# Quality threshold for base model auto-calculation
+# Ensures auto-computed total_base_steps provide sufficient sampling quality
+base_quality_threshold = 20
 
 [boundaries]
 # Default sigma boundaries for different model types used when sigma boundary-based model switching is enabled

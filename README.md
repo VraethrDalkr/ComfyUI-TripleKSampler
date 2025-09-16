@@ -136,7 +136,7 @@ The package uses a TOML-based configuration system that avoids git conflicts whe
 
 ```toml
 [sampling]
-min_total_steps = 20
+base_quality_threshold = 20
 
 [boundaries]
 default_t2v = 0.875
@@ -147,7 +147,7 @@ level = "INFO"
 ```
 
 **Parameters:**
-- **`min_total_steps`**: Quality threshold for automatic base step calculation
+- **`base_quality_threshold`**: Quality threshold for base model auto-calculation
 - **`default_t2v`**: Default sigma boundary for text-to-video models (0.875)
 - **`default_i2v`**: Default sigma boundary for image-to-video models (0.900)
 - **`level`**: Logging level (`"DEBUG"` shows detailed calculations, `"INFO"` shows essential workflow info)

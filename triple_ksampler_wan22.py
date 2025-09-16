@@ -27,7 +27,7 @@ import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 
 # Hardcoded default values
-_DEFAULT_MIN_TOTAL_STEPS = 20
+_DEFAULT_BASE_QUALITY_THRESHOLD = 20
 _DEFAULT_BOUNDARY_T2V = 0.875
 _DEFAULT_BOUNDARY_I2V = 0.900
 _DEFAULT_LOG_LEVEL = "INFO"
@@ -50,7 +50,7 @@ def _load_config() -> Dict[str, Any]:
     Returns:
         Dict containing configuration values with the following structure:
         {
-            "sampling": {"min_total_steps": int},
+            "sampling": {"base_quality_threshold": int},
             "boundaries": {"default_t2v": float, "default_i2v": float},
             "logging": {"level": str}
         }
@@ -65,7 +65,7 @@ def _load_config() -> Dict[str, Any]:
             print(f"[TripleKSampler] Warning: TOML support not available. Install with: pip install tomli")
             # Fall back to hardcoded defaults
             return {
-                "sampling": {"min_total_steps": _DEFAULT_MIN_TOTAL_STEPS},
+                "sampling": {"base_quality_threshold": _DEFAULT_BASE_QUALITY_THRESHOLD},
                 "boundaries": {
                     "default_t2v": _DEFAULT_BOUNDARY_T2V,
                     "default_i2v": _DEFAULT_BOUNDARY_I2V
@@ -106,7 +106,7 @@ def _load_config() -> Dict[str, Any]:
 
     # Final fallback to hardcoded values
     return {
-        "sampling": {"min_total_steps": _DEFAULT_MIN_TOTAL_STEPS},
+        "sampling": {"base_quality_threshold": _DEFAULT_BASE_QUALITY_THRESHOLD},
         "boundaries": {
             "default_t2v": _DEFAULT_BOUNDARY_T2V,
             "default_i2v": _DEFAULT_BOUNDARY_I2V
@@ -119,7 +119,7 @@ def _load_config() -> Dict[str, Any]:
 _CONFIG = _load_config()
 
 # Extract configuration values with safe fallbacks
-_MIN_TOTAL_STEPS = _CONFIG.get("sampling", {}).get("min_total_steps", _DEFAULT_MIN_TOTAL_STEPS)
+_BASE_QUALITY_THRESHOLD = _CONFIG.get("sampling", {}).get("base_quality_threshold", _DEFAULT_BASE_QUALITY_THRESHOLD)
 _DEFAULT_BOUNDARY_T2V = _CONFIG.get("boundaries", {}).get("default_t2v", _DEFAULT_BOUNDARY_T2V)
 _DEFAULT_BOUNDARY_I2V = _CONFIG.get("boundaries", {}).get("default_i2v", _DEFAULT_BOUNDARY_I2V)
 _LOG_LEVEL = _CONFIG.get("logging", {}).get("level", _DEFAULT_LOG_LEVEL)
@@ -255,7 +255,7 @@ class TripleKSamplerWan22Base:
         }
 
     @classmethod
-    def _calculate_perfect_alignment(cls, min_total_steps: int, lightning_start: int, lightning_steps: int) -> Tuple[int, int, str]:
+    def _calculate_perfect_alignment(cls, base_quality_threshold: int, lightning_start: int, lightning_steps: int) -> Tuple[int, int, str]:
         """
         Calculate base_steps and total_base_steps for perfect stage alignment.
 
@@ -263,7 +263,7 @@ class TripleKSamplerWan22Base:
         efficiently, ensuring Stage 1 end percentage exactly equals Stage 2 start percentage.
 
         Args:
-            min_total_steps: Minimum total steps requirement.
+            base_quality_threshold: Quality threshold for base model calculation.
             lightning_start: Starting step in lightning schedule.
             lightning_steps: Total lightning steps.
 
@@ -273,21 +273,21 @@ class TripleKSamplerWan22Base:
         """
         if lightning_start == 1:
             # Simple case: direct calculation guarantees perfect alignment
-            base_steps = math.ceil(min_total_steps / lightning_steps)
+            base_steps = math.ceil(base_quality_threshold / lightning_steps)
             total_base_steps = base_steps * lightning_steps
             return base_steps, total_base_steps, "simple_math"
         else:
             # Complex case: search for perfect alignment
-            search_limit = min_total_steps + lightning_steps
-            for candidate_total in range(min_total_steps, search_limit):
+            search_limit = base_quality_threshold + lightning_steps
+            for candidate_total in range(base_quality_threshold, search_limit):
                 if (candidate_total * lightning_start) % lightning_steps == 0:
                     base_steps = candidate_total * lightning_start // lightning_steps
                     return base_steps, candidate_total, "mathematical_search"
 
             # Fallback if no perfect alignment found (very rare)
-            base_steps = math.ceil(min_total_steps * lightning_start / lightning_steps)
+            base_steps = math.ceil(base_quality_threshold * lightning_start / lightning_steps)
             optimal_total = base_steps * lightning_steps / lightning_start
-            total_base_steps = max(int(math.ceil(optimal_total)), min_total_steps)
+            total_base_steps = max(int(math.ceil(optimal_total)), base_quality_threshold)
             return base_steps, total_base_steps, "fallback"
 
     def _get_model_patcher(self) -> ModelSamplingSD3:
@@ -677,7 +677,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             logger.debug("  switch_boundary=%.3f", switch_boundary)
         elif switch_strategy == "Manual switch step":
             logger.debug("  switch_step=%d", switch_step)
-        logger.debug("Configuration: MIN_TOTAL_STEPS=%d, DRY_RUN=%s", _MIN_TOTAL_STEPS, dry_run)
+        logger.debug("Configuration: BASE_QUALITY_THRESHOLD=%d, DRY_RUN=%s", _BASE_QUALITY_THRESHOLD, dry_run)
 
         # Validate parameters
         if lightning_steps < 2:
@@ -703,7 +703,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         if base_steps == -1:
             # Auto-calculate base_steps
             base_steps, optimal_total_base_steps, method = self._calculate_perfect_alignment(
-                _MIN_TOTAL_STEPS, lightning_start, lightning_steps
+                _BASE_QUALITY_THRESHOLD, lightning_start, lightning_steps
             )
 
             # Only log auto-calculation if we're actually using base_steps (Stage 1 will run)
@@ -863,7 +863,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             else:
                 # Fallback: recalculate using unified function (should rarely happen)
                 _, total_base_steps, _ = self._calculate_perfect_alignment(
-                    _MIN_TOTAL_STEPS, lightning_start, lightning_steps
+                    _BASE_QUALITY_THRESHOLD, lightning_start, lightning_steps
                 )
                 logger.debug("Fallback calculation: total_base_steps=%d", total_base_steps)
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
