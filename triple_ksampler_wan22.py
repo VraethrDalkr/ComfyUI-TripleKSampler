@@ -427,7 +427,7 @@ class TripleKSamplerWan22Base:
 
         if stage_info:
             stage_type = (
-                stage_name.replace("Stage 1", "Base denoising")
+                stage_name.replace("Stage 1", "Base high model")
                 .replace("Stage 2", "Lightning high model")
                 .replace("Stage 3", "Lightning low model")
             )
@@ -543,6 +543,13 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                     }
                 ),
                 # Sampler parameters
+                "dry_run": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Enable dry run mode for testing configurations without actual sampling."
+                    }
+                ),
                 "sampler_name": base_inputs["sampler_name"],
                 "scheduler": base_inputs["scheduler"],
                 "switch_strategy": (
@@ -574,13 +581,6 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                             "Boundary for sigma-based model switching. "
                             "Recommended 0.875 for T2V, 0.900 for I2V."
                         )
-                    }
-                ),
-                "dry_run": (
-                    "BOOLEAN",
-                    {
-                        "default": False,
-                        "tooltip": "Enable dry run mode for testing configurations without actual sampling."
                     }
                 ),
             }
@@ -767,7 +767,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         stage3_add_noise = False  # Will be updated if both previous stages are skipped
 
         if lightning_start > switch_step_final:
-            raise ValueError(f"lightning_start ({lightning_start}) cannot be greater than switch_step ({switch_step_final}). Either decrease lightning_start or increase switch_step, or use a different switching strategy.")
+            raise ValueError(f"lightning_start ({lightning_start}) cannot be greater than switch_step ({switch_step_final}). Either decrease lightning_start or use a different switching strategy.")
         else:
             # Log switching strategy
             if switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
@@ -820,6 +820,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 # Manual base_steps: use standard calculation to match Stage 2 start
                 total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
                 total_base_steps = max(total_base_steps, base_steps)
+                logger.info("Auto-calculated total_base_steps = %d for manual base_steps = %d", total_base_steps, base_steps)
                 logger.debug("Manual calculation: total_base_steps=%d", total_base_steps)
 
                 # Check for stage overlap and warn user
@@ -828,9 +829,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 if stage1_end_pct > stage2_start_pct:
                     overlap_pct = (stage1_end_pct - stage2_start_pct) * 100
                     logger.warning(
-                        "Stage overlap (%.1f%%) detected! For perfect alignment, try one of the following: "
-                        "multiples of lightning_start for base_steps, even number for lightning_steps, "
-                        "or base_steps=-1 for auto-calculation.",
+                        "Stage 1 and 2 overlap (%.1f%%) detected! For perfect alignment, use base_steps=-1 (auto-calculation) or adjust lightning parameters.",
                         overlap_pct
                     )
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
