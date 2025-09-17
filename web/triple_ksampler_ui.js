@@ -110,19 +110,9 @@ app.registerExtension({
 
     // Listen for overlap warnings from backend
     setup() {
-        api.addEventListener("executed", (ev) => {
+        api.addEventListener("triple_ksampler_overlap", (ev) => {
             try {
-                const output = ev.detail?.output;
-                if (!output) return;
-
-                // Find the payload in any executed node's UI output
-                let payload = null;
-                for (const nodeId in output) {
-                    if (output[nodeId]?.ui?.triple_ksampler_overlap) {
-                        payload = output[nodeId].ui.triple_ksampler_overlap;
-                        break;
-                    }
-                }
+                const payload = ev.detail;
                 if (!payload) return;
 
                 app.extensionManager.toast.add({
@@ -133,7 +123,7 @@ app.registerExtension({
                 });
             } catch (e) {
                 console.error(
-                    "TripleKSampler extension failed to handle executed event:",
+                    "TripleKSampler extension failed to handle overlap message:",
                     e
                 );
             }

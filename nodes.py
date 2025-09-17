@@ -21,6 +21,7 @@ import comfy.samplers
 import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
+from server import PromptServer
 
 # Hardcoded default values
 _DEFAULT_BASE_QUALITY_THRESHOLD = 20
@@ -164,7 +165,6 @@ class TripleKSamplerWan22Base:
     RETURN_NAMES = ("LATENT",)
     FUNCTION = "sample"
     CATEGORY = "TripleKSampler/sampling"
-    OUTPUT_NODE = True
 
     @classmethod
     def _get_base_input_types(cls) -> Dict[str, Any]:
@@ -553,7 +553,6 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
 
         # Calculate base_steps and total_base_steps
         optimal_total_base_steps = None
-        ui_output = None  # Initialize for toast notifications
         if base_steps == -1:
             base_steps, optimal_total_base_steps, method = self._calculate_perfect_alignment(
                 _BASE_QUALITY_THRESHOLD, lightning_start, lightning_steps
@@ -598,14 +597,13 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                             "Stage 1 and 2 overlap (%.1f%%) detected! For perfect alignment, use base_steps=-1 or adjust lightning params.",
                             overlap_pct,
                         )
-                        ui_output = {
-                            "triple_ksampler_overlap": {
-                                "severity": "warn",
-                                "summary": "TripleKSampler: Stage overlap",
-                                "detail": f"Stage 1 and Stage 2 overlap by {overlap_pct:.1f}%. Consider base_steps=-1 or adjust lightning parameters.",
-                                "life": 8000,
-                            }
-                        }
+                        # Send toast notification via ComfyUI message system
+                        PromptServer.instance.send_sync("triple_ksampler_overlap", {
+                            "severity": "warn",
+                            "summary": "TripleKSampler: Stage overlap",
+                            "detail": f"Stage 1 and Stage 2 overlap by {overlap_pct:.1f}%. Consider base_steps=-1 or adjust lightning parameters.",
+                            "life": 8000,
+                        })
 
         if lightning_start > 0 and base_steps < 1:
             raise ValueError("base_steps must be >= 1 when lightning_start > 0.")
@@ -793,11 +791,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             logger.info("[DRY RUN] Complete - calculations performed, no sampling executed")
             bare_logger.info("")
 
-        # Return with UI payload if set, else return normal outputs
-        if ui_output is not None:
-            return {"ui": ui_output, "result": stage3_result}
-        else:
-            return stage3_result
+        # Always return tuple as expected by RETURN_TYPES
+        return stage3_result
 
 
 class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
