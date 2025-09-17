@@ -1,17 +1,18 @@
 import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js";
 
 // Helper function to find widget by name
 function findWidgetByName(node, name) {
-    return node.widgets?.find(w => w.name === name);
+    return node.widgets?.find((w) => w.name === name);
 }
 
 // Helper function to actually remove/add widgets from node
 function toggleWidget(node, widgetName, show = false) {
     if (!node.widgets) return;
-    
-    const existingIndex = node.widgets.findIndex(w => w.name === widgetName);
+
+    const existingIndex = node.widgets.findIndex((w) => w.name === widgetName);
     const widgetExists = existingIndex !== -1;
-    
+
     if (show && !widgetExists) {
         // Need to add the widget back
         const widgetConfig = node.hiddenWidgets?.[widgetName];
@@ -22,11 +23,11 @@ function toggleWidget(node, widgetName, show = false) {
     } else if (!show && widgetExists) {
         // Need to remove the widget
         const widget = node.widgets[existingIndex];
-        
+
         // Store widget for later restoration
         if (!node.hiddenWidgets) node.hiddenWidgets = {};
         node.hiddenWidgets[widgetName] = widget;
-        
+
         // Remove from widgets array
         node.widgets.splice(existingIndex, 1);
     }
@@ -35,9 +36,9 @@ function toggleWidget(node, widgetName, show = false) {
 // Dynamic UI extension for TripleKSampler nodes
 app.registerExtension({
     name: "TripleKSampler.DynamicUI",
-    
+
     async nodeCreated(node) {
-        // Only apply to the advanced TripleKSampler node (simple node has no dynamic parameters)
+        // Only apply to the advanced TripleKSampler node
         if (node.comfyClass !== "TripleKSamplerWan22LightningAdvanced") {
             return;
         }
@@ -53,28 +54,23 @@ app.registerExtension({
 
             switch (strategy) {
                 case "50% of steps":
-                    // Hide both parameters
                     showSwitchStep = false;
                     showSwitchBoundary = false;
                     break;
                 case "Manual switch step":
-                    // Show switch step, hide boundary
                     showSwitchStep = true;
                     showSwitchBoundary = false;
                     break;
                 case "T2V boundary":
                 case "I2V boundary":
-                    // Hide both (auto-select boundary values)
                     showSwitchStep = false;
                     showSwitchBoundary = false;
                     break;
                 case "Manual boundary":
-                    // Show boundary, hide switch step
                     showSwitchStep = false;
                     showSwitchBoundary = true;
                     break;
                 default:
-                    // Default: show both for safety
                     showSwitchStep = true;
                     showSwitchBoundary = true;
             }
@@ -83,13 +79,12 @@ app.registerExtension({
             toggleWidget(node, "switch_step", showSwitchStep);
             toggleWidget(node, "switch_boundary", showSwitchBoundary);
 
-            // Simple node layout refresh
+            // Refresh canvas
             node.setDirtyCanvas(true, true);
             if (node.graph && node.graph.canvas) {
                 node.graph.canvas.setDirty(true, true);
             }
-            
-            // Basic layout recalculation with minimal complexity
+
             setTimeout(() => {
                 if (node.onResize) {
                     node.onResize(node.size);
@@ -100,7 +95,7 @@ app.registerExtension({
 
         // Set up callback for strategy changes
         const originalCallback = strategyWidget.callback;
-        strategyWidget.callback = function(value) {
+        strategyWidget.callback = function (value) {
             updateWidgetVisibility(value);
             if (originalCallback) {
                 originalCallback.apply(this, arguments);
@@ -111,5 +106,27 @@ app.registerExtension({
         setTimeout(() => {
             updateWidgetVisibility(strategyWidget.value);
         }, 100);
-    }
+    },
+
+    // Listen for overlap warnings from backend
+    setup() {
+        api.addEventListener("triple_ksampler_overlap", (ev) => {
+            try {
+                const payload = ev.detail;
+                if (!payload) return;
+
+                app.extensionManager.toast.add({
+                    severity: payload.severity || "warn",
+                    summary: payload.summary || "TripleKSampler",
+                    detail: payload.detail || "",
+                    life: payload.life || 5000,
+                });
+            } catch (e) {
+                console.error(
+                    "TripleKSampler extension failed to handle overlap message:",
+                    e
+                );
+            }
+        });
+    },
 });
