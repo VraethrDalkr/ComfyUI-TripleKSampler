@@ -115,7 +115,14 @@ app.registerExtension({
                 const output = ev.detail?.output;
                 if (!output) return;
 
-                const payload = output.triple_ksampler_overlap;
+                // Find the payload in any executed node's UI output
+                let payload = null;
+                for (const nodeId in output) {
+                    if (output[nodeId]?.ui?.triple_ksampler_overlap) {
+                        payload = output[nodeId].ui.triple_ksampler_overlap;
+                        break;
+                    }
+                }
                 if (!payload) return;
 
                 app.extensionManager.toast.add({

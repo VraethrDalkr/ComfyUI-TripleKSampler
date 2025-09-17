@@ -164,6 +164,7 @@ class TripleKSamplerWan22Base:
     RETURN_NAMES = ("LATENT",)
     FUNCTION = "sample"
     CATEGORY = "TripleKSampler/sampling"
+    OUTPUT_NODE = True
 
     @classmethod
     def _get_base_input_types(cls) -> Dict[str, Any]:
@@ -548,7 +549,6 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                     "If you want low-noise only, set lightning_start=0 as well."
                 )
 
-        base_steps_auto_calculated = (base_steps == -1)
         bare_logger.info("")  # separator before calculation logs
 
         # Calculate base_steps and total_base_steps
