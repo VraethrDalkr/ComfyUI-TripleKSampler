@@ -1,18 +1,26 @@
 [project]
-name = "comfyui-tripleksampler"
-version = "0.7.0"
+name = "tripleksampler"
+version = "0.7.1"
 description = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 readme = "README.md"
-requires-python = ">=3.9"
 license = { file = "LICENSE" }
-authors = [
-  { name = "VraethrDalkr", url = "https://github.com/VraethrDalkr" }
+requires-python = ">=3.9"
+classifiers = [
+  "Operating System :: OS Independent"
 ]
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
 
 [project.urls]
 Repository = "https://github.com/VraethrDalkr/ComfyUI-TripleKSampler"
-Homepage = "https://github.com/VraethrDalkr/ComfyUI-TripleKSampler"
-Issues = "https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/issues"
+"Bug Tracker" = "https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/issues"
+
+[tool.comfy]
+PublisherId = "vraethrdalkr"
+DisplayName = "ComfyUI-TripleKSampler"
+requires-comfyui = ">=1.0.0"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

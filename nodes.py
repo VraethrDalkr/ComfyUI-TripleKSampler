@@ -791,6 +791,15 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             logger.info("[DRY RUN] Complete - calculations performed, no sampling executed")
             bare_logger.info("")
 
+            # Create a minimal 8x8 latent to speed up downstream VAE processing
+            original_samples = latent_image.get("samples")
+            if original_samples is not None:
+                device = original_samples.device
+                dtype = original_samples.dtype
+                channels = original_samples.shape[1]
+                small_latent_tensor = torch.zeros((1, channels, 1, 8, 8), device=device, dtype=dtype)
+                return ({"samples": small_latent_tensor},)
+
         # Always return tuple as expected by RETURN_TYPES
         return stage3_result
 
