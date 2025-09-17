@@ -5,14 +5,14 @@ This package provides custom nodes for ComfyUI that implement a sophisticated
 triple-stage sampling workflow optimized for Wan2.2 split models with Lightning LoRA.
 """
 
-from .triple_ksampler_wan22 import (
+from .nodes import (
     TripleKSamplerWan22Lightning,
     TripleKSamplerWan22LightningAdvanced,
     NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS,
 )
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 __author__ = "VraethrDalkr"
 __description__ = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 

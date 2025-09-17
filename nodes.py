@@ -13,14 +13,12 @@ Classes:
 
 from __future__ import annotations
 
-import json
 import logging
 import math
 import os
 import shutil
 from typing import Any, Dict, List, Optional, Tuple
 
-import comfy.model_sampling
 import comfy.samplers
 import nodes
 import torch
@@ -60,7 +58,7 @@ def _load_config() -> Dict[str, Any]:
         import tomllib  # Python 3.11+
     except ImportError:
         try:
-            import tomli as tomllib  # Fallback for older Python
+            import tomli as tomllib  # type: ignore # Fallback for older Python
         except ImportError:
             print(f"[TripleKSampler] Warning: TOML support not available. Install with: pip install tomli")
             # Fall back to hardcoded defaults
@@ -120,8 +118,8 @@ _CONFIG = _load_config()
 
 # Extract configuration values with safe fallbacks
 _BASE_QUALITY_THRESHOLD = _CONFIG.get("sampling", {}).get("base_quality_threshold", _DEFAULT_BASE_QUALITY_THRESHOLD)
-_DEFAULT_BOUNDARY_T2V = _CONFIG.get("boundaries", {}).get("default_t2v", _DEFAULT_BOUNDARY_T2V)
-_DEFAULT_BOUNDARY_I2V = _CONFIG.get("boundaries", {}).get("default_i2v", _DEFAULT_BOUNDARY_I2V)
+_BOUNDARY_T2V = _CONFIG.get("boundaries", {}).get("default_t2v", _DEFAULT_BOUNDARY_T2V)
+_BOUNDARY_I2V = _CONFIG.get("boundaries", {}).get("default_i2v", _DEFAULT_BOUNDARY_I2V)
 _LOG_LEVEL = _CONFIG.get("logging", {}).get("level", _DEFAULT_LOG_LEVEL)
 
 
@@ -789,9 +787,9 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         elif switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
             # Select appropriate boundary value
             if switch_strategy == "T2V boundary":
-                boundary_value = _DEFAULT_BOUNDARY_T2V
+                boundary_value = _BOUNDARY_T2V
             elif switch_strategy == "I2V boundary":
-                boundary_value = _DEFAULT_BOUNDARY_I2V
+                boundary_value = _BOUNDARY_I2V
             else:  # Manual boundary
                 boundary_value = switch_boundary
 
@@ -821,8 +819,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         else:
             # Log switching strategy
             if switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
-                boundary_value = _DEFAULT_BOUNDARY_T2V if switch_strategy == "T2V boundary" else (
-                    _DEFAULT_BOUNDARY_I2V if switch_strategy == "I2V boundary" else switch_boundary
+                boundary_value = _BOUNDARY_T2V if switch_strategy == "T2V boundary" else (
+                    _BOUNDARY_I2V if switch_strategy == "I2V boundary" else switch_boundary
                 )
                 logger.info(
                     "Model switching: %s (boundary = %s) → switch at step %d of %d",
@@ -991,6 +989,15 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
                 "seed": base_inputs["seed"],
                 "sigma_shift": base_inputs["sigma_shift"],
                 "base_cfg": base_inputs["base_cfg"],
+                "lightning_start": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 99,
+                        "tooltip": "Start step inside lightning schedule (0 to skip Stage 1)."
+                    }
+                ),
                 "lightning_steps": base_inputs["lightning_steps"],
                 # Sampler parameters
                 "sampler_name": base_inputs["sampler_name"],
@@ -1021,11 +1028,17 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
         latent_image: Dict[str, torch.Tensor],
         seed: int,
         sigma_shift: float,
-        base_cfg: float,
-        lightning_steps: int,
-        sampler_name: str,
-        scheduler: str,
-        switch_strategy: str
+        base_steps: int = -1,  # Not in Simple INPUT_TYPES, but matches Advanced signature
+        base_cfg: float = 3.5,  # Will be overridden by ComfyUI if provided
+        lightning_start: int = 1,  # Will be overridden by ComfyUI if provided
+        lightning_steps: int = 8,  # Will be overridden by ComfyUI if provided
+        lightning_cfg: float = 1.0,  # Not in Simple INPUT_TYPES, fixed for Simple node
+        sampler_name: str = "euler",  # Will be overridden by ComfyUI if provided
+        scheduler: str = "simple",  # Will be overridden by ComfyUI if provided
+        switch_strategy: str = "50% of steps",  # Will be overridden by ComfyUI if provided
+        switch_boundary: float = 0.875,
+        switch_step: int = -1,
+        dry_run: bool = False
     ) -> Tuple[Dict[str, torch.Tensor]]:
         """
         Execute simplified triple-stage sampling pipeline.
@@ -1039,11 +1052,17 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
             latent_image: Input latent image.
             seed: Random seed.
             sigma_shift: Sigma shift value.
+            base_steps: Base steps (ignored - auto-calculated based on quality threshold).
             base_cfg: CFG scale for base stage.
+            lightning_start: Start step inside lightning schedule.
             lightning_steps: Total lightning steps.
+            lightning_cfg: Lightning CFG scale (ignored - fixed at 1.0).
             sampler_name: Sampler algorithm.
             scheduler: Noise scheduler.
             switch_strategy: Strategy for lightning model switching.
+            switch_boundary: Boundary value (optional - ignored for non-manual strategies).
+            switch_step: Manual switch step (optional - ignored for non-manual strategies).
+            dry_run: Dry run mode (optional - always False for Simple node).
 
         Returns:
             Tuple containing final latent dictionary.
@@ -1051,6 +1070,9 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
         Raises:
             ValueError: If parameters are invalid.
         """
+        # Type ignore for unused parameters (Simple node overrides these)
+        del base_steps, lightning_cfg, switch_boundary, switch_step, dry_run  # type: ignore
+
         # Delegate to parent (advanced) implementation with fixed/auto-calculated parameters
         return super().sample(
             base_high=base_high,
@@ -1063,14 +1085,15 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
             sigma_shift=sigma_shift,
             base_steps=-1,  # Auto-calculate in parent
             base_cfg=base_cfg,
-            lightning_start=1,  # Fixed for simple node
+            lightning_start=lightning_start,
             lightning_steps=lightning_steps,
             lightning_cfg=1.0,  # Fixed CFG for lightning stages in simple node
             sampler_name=sampler_name,
             scheduler=scheduler,
             switch_strategy=switch_strategy,
             switch_boundary=0.875,  # Default value for simple node
-            switch_step=-1      # Auto-calculate for simple node
+            switch_step=-1,     # Auto-calculate for simple node
+            dry_run=False       # Always False for simple node
         )
 
 

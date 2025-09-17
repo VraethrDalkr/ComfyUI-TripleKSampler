@@ -56,7 +56,7 @@ Variant with complete configurability:
 
 ## Example Workflows
 
-Example workflows are included: `example_workflow_t2v.json` and `example_workflow_i2v.json`
+Example workflows are included in the `example_workflows/` directory: `t2v_workflow.json` and `i2v_workflow.json`
 
 ## Usage
 
@@ -205,7 +205,7 @@ The nodes provide detailed logging including:
 
 ### Code Structure
 - `__init__.py`: Package initialization, node registration, and web directory setup
-- `triple_ksampler_wan22.py`: Main implementation with clean inheritance hierarchy:
+- `nodes.py`: Main implementation with clean inheritance hierarchy:
   - `TripleKSamplerWan22Base`: Shared functionality and core sampling logic
   - `TripleKSamplerWan22LightningAdvanced`: Advanced node with full parameter control
   - `TripleKSamplerWan22Lightning`: Simple node with streamlined interface
