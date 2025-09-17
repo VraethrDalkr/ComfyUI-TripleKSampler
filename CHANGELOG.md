@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.7.2] - 2024-09-17
+### Changed
+- Repository made public for ComfyUI Registry and community access
+- Added node.zip to .gitignore for Comfy CLI compatibility
+
 ## [0.7.1] - 2024-09-17
 ### Added
 - Minimal 8x8 latent optimization for dry run mode to speed up downstream VAE processing

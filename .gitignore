@@ -55,6 +55,7 @@ Thumbs.db
 *.log
 temp/
 output/
+node.zip
 
 # Development files
 CLAUDE.md
