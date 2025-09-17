@@ -125,7 +125,12 @@ _LOG_LEVEL = _CONFIG.get("logging", {}).get("level", _DEFAULT_LOG_LEVEL)
 
 
 def _get_log_level() -> int:
-    """Return logging level constant for configured logging level."""
+    """
+    Convert LOG_LEVEL string from configuration to logging level constant.
+
+    Only supports DEBUG and INFO levels. WARNING and ERROR messages
+    are always shown regardless of LOG_LEVEL setting.
+    """
     if str(_LOG_LEVEL).upper() == "DEBUG":
         return logging.DEBUG
     return logging.INFO
@@ -334,7 +339,7 @@ class TripleKSamplerWan22Base:
                 f"{stage_name}: start_at_step ({start_at_step}) >= end_at_step ({end_at_step})."
             )
 
-        bare_logger.info("")  # visual separator
+        bare_logger.info("")  # visual separator before stage execution
 
         if stage_info:
             stage_type = (
@@ -544,10 +549,11 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 )
 
         base_steps_auto_calculated = (base_steps == -1)
-        bare_logger.info("")
+        bare_logger.info("")  # separator before calculation logs
 
         # Calculate base_steps and total_base_steps
         optimal_total_base_steps = None
+        ui_output = None  # Initialize for toast notifications
         if base_steps == -1:
             base_steps, optimal_total_base_steps, method = self._calculate_perfect_alignment(
                 _BASE_QUALITY_THRESHOLD, lightning_start, lightning_steps
@@ -583,7 +589,6 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                     base_steps,
                 )
                 # === Stage overlap check ===
-                ui_output = None
                 if lightning_start > 0 and base_steps > 0 and optimal_total_base_steps > 0:
                     stage1_end_pct = base_steps / optimal_total_base_steps
                     stage2_start_pct = lightning_start / lightning_steps
@@ -593,14 +598,14 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                             "Stage 1 and 2 overlap (%.1f%%) detected! For perfect alignment, use base_steps=-1 or adjust lightning params.",
                             overlap_pct,
                         )
-                    ui_output = {
-                        "triple_ksampler_overlap": {
-                            "severity": "warn",
-                            "summary": "TripleKSampler: Stage overlap",
-                            "detail": f"Stage 1 and Stage 2 overlap by {overlap_pct:.1f}%. Consider base_steps=-1 or adjust lightning parameters.",
-                            "life": 8000,
+                        ui_output = {
+                            "triple_ksampler_overlap": {
+                                "severity": "warn",
+                                "summary": "TripleKSampler: Stage overlap",
+                                "detail": f"Stage 1 and Stage 2 overlap by {overlap_pct:.1f}%. Consider base_steps=-1 or adjust lightning parameters.",
+                                "life": 8000,
+                            }
                         }
-                    }
 
         if lightning_start > 0 and base_steps < 1:
             raise ValueError("base_steps must be >= 1 when lightning_start > 0.")
@@ -702,7 +707,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                     "or increase lightning_start to use base denoising."
                 )
             logger.info("Lightning-only mode: base_steps not applicable (Stage 1 skipped)")
-            bare_logger.info("")
+            bare_logger.info("")  # separator before skipped stage log
             logger.info("Stage 1: Skipped (Lightning-only mode)")
             stage1_output = latent_image
         else:
@@ -736,7 +741,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
 
         # Stage 2: Lightning high
         if skip_stage2:
-            bare_logger.info("")
+            bare_logger.info("")  # separator before skipped stage log
             logger.info("Stage 2: Skipped (%s)", stage2_skip_reason)
             stage2_output = stage1_output
         else:
@@ -783,7 +788,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             stage_info=stage3_info,
         )
 
-        bare_logger.info("")
+        bare_logger.info("")  # final separator after all sampling completes
         if dry_run:
             logger.info("[DRY RUN] Complete - calculations performed, no sampling executed")
             bare_logger.info("")

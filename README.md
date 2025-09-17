@@ -19,9 +19,9 @@ The nodes clone and patch models with sigma shift for optimal sampling without m
 Main triple-stage sampler with streamlined interface:
 
 - **Streamlined Interface**: Essential parameters with smart defaults
-- **Auto-computed base_steps**: Ensures base_steps * lightning_steps >= 20 for quality
+- **Auto-computed base_steps**: Uses quality threshold-based calculation for optimal base model utilization
 - **Lightning-start Aware**: Auto-calculation accounts for when Lightning processing begins
-- **Fixed lightning_start**: Always set to 1 for optimal workflow
+- **Configurable lightning_start**: Defaults to 1 but can be adjusted for different workflows
 - **Same Functionality**: Uses the same algorithm as the Advanced node
 
 ### TripleKSampler Advanced (Wan2.2-Lightning)
@@ -95,7 +95,7 @@ Example workflows are included in the `example_workflows/` directory: `t2v_workf
 The Advanced node offers 5 switching strategies with dynamic UI that shows only relevant parameters:
 
 ### 1. "50% of steps" (Auto-Midpoint)
-Simple approach that switches at 50% of lightning steps. Reliable and straightforward.
+Simple approach that switches at 50% of lightning steps (rounded up). Reliable and straightforward.
 
 ### 2. "Manual switch step"
 Allows precise control over the switching step. Shows switch_step parameter for manual configuration.
@@ -156,10 +156,10 @@ The `config.toml` file is automatically created on first run and is gitignored t
 
 ## Auto-Calculation Methods
 
-When you set `base_steps=-1`, the nodes automatically calculate optimal values using one of three methods:
+When you set `base_steps=-1` (Advanced node only), the node automatically calculates optimal values using one of three methods:
 
 ### Simple Math
-**When**: `lightning_start=1` (most common case)
+**When**: `lightning_start=1` (default value)
 **Behavior**: Direct mathematical calculation that guarantees perfect alignment between Stage 1 and Stage 2 transition points
 **Result**: Achieves stage alignment with minimal computation
 
