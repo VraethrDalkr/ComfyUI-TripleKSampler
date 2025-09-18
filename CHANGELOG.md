@@ -5,6 +5,10 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.7.6] - 2025-09-17
+### Added
+- GitHub Actions workflow for automated ComfyUI Registry publishing
+
 ## [0.7.5] - 2025-09-17
 ### Fixed
 - Remove [build-system] section from pyproject.toml to improve ComfyUI Registry compatibility
