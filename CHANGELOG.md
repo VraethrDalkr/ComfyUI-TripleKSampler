@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.7.10] - 2025-09-18
+### Added
+- Edge Cases and Special Modes documentation section in README.md
+- Comprehensive documentation for Lightning-Only Mode, Base High + Lightning Low Mode, and Lightning Low Only Mode
+- Complete validation rules and parameter requirements for special sampling configurations
+
 ## [0.7.9] - 2025-09-18
 ### Improved
 - Enhanced README.md with comprehensive parameter documentation and clearer organization

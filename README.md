@@ -254,6 +254,37 @@ When you set `switch_step=-1` (Advanced node only), the node automatically calcu
 
 **Log Messages**: You'll see method names in the console output when using auto-calculation, helping you understand which approach was used for your specific configuration.
 
+## Edge Cases and Special Modes (Advanced Node Only)
+
+The Advanced node supports several special sampling modes by configuring specific parameter combinations. Each mode has strict validation requirements:
+
+### 1. Lightning-Only Mode (Skip Stage 1)
+- **Configuration**: `lightning_start=0`
+- **Requirements**: `base_steps` must be `-1` or `0` (validation enforced)
+- **Behavior**: Skips base model entirely, starts with Lightning High
+- **Use case**: Pure Lightning LoRA workflow
+
+### 2. Base High + Lightning Low Mode (Skip Stage 2)
+- **Configuration**: Set `lightning_start` equal to the switch point
+- **Automatic**: Occurs when `lightning_start == switch_step`
+- **Behavior**: Base high-noise processing → direct jump to Lightning Low
+- **Use case**: Simplified two-stage workflow emphasizing noise transition
+
+### 3. Lightning Low Only Mode (Skip Stages 1 & 2)
+- **Configuration**:
+  - `lightning_start=0`
+  - `switching_strategy="Manual switch step"`
+  - `switch_step=0`
+- **Requirements**: `base_steps` must be `-1` or `0` (validation enforced)
+- **Behavior**: Only Lightning Low refinement stage executes
+- **Use case**: Final polish on pre-processed latents
+
+### 4. Validation Rules
+- `lightning_start > 0` requires `base_steps >= 1`
+- `base_steps = 0` only allowed when `lightning_start = 0`
+- When both stages 1&2 are skipped, `base_steps` must be `-1` or `0`
+- `lightning_start` cannot exceed `switch_step`
+
 ## Additional Features
 
 ### Dry Run Mode (Advanced Node Only)
