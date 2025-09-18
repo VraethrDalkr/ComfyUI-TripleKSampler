@@ -64,6 +64,10 @@ CLAUDE.md
 # User configuration
 config.toml
 
+# Environment variables
+.env
+.env.local
+
 # Type stubs (VSCode development only)
 stubs/
 *.pyi
