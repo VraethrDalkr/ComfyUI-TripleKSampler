@@ -12,7 +12,7 @@ from .nodes import (
     NODE_DISPLAY_NAME_MAPPINGS,
 )
 
-__version__ = "0.7.4"
+__version__ = "0.7.5"
 __author__ = "VraethrDalkr"
 __description__ = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 

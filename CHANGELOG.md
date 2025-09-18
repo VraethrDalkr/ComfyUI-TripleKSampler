@@ -5,6 +5,10 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.7.5] - 2025-09-17
+### Fixed
+- Remove [build-system] section from pyproject.toml to improve ComfyUI Registry compatibility
+
 ## [0.7.4] - 2024-09-17
 ### Fixed
 - Update CHANGELOG.md for v0.7.3 that was missed in previous release

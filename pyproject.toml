@@ -1,6 +1,6 @@
 [project]
 name = "tripleksampler"
-version = "0.7.4"
+version = "0.7.5"
 description = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -17,7 +17,3 @@ Repository = "https://github.com/VraethrDalkr/ComfyUI-TripleKSampler"
 [tool.comfy]
 PublisherId = "vraethrdalkr"
 DisplayName = "ComfyUI-TripleKSampler"
-
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
