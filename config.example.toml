@@ -3,8 +3,9 @@
 # The config.toml file will not be overwritten during updates.
 
 [sampling]
-# Quality threshold for base model auto-calculation
-# Ensures auto-computed total_base_steps provide sufficient sampling quality
+# Minimum total steps constraint for base_steps auto-calculation
+# When base_steps = -1, ensures the computed total_base_steps meets this minimum
+# Higher values = more sampling resolution, lower values = faster computation
 base_quality_threshold = 20
 
 [boundaries]

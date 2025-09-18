@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.7.9] - 2025-09-18
+### Improved
+- Enhanced README.md with comprehensive parameter documentation and clearer organization
+- Added "Key Differences from Native KSampler" section for better user understanding
+- Improved node tooltips for better parameter clarity and context
+- Updated config documentation with clearer quality threshold explanation
+- Reorganized documentation sections for logical flow and eliminated redundancy
+
 ## [0.7.8] - 2025-09-17
 ### Fixed
 - Complete GitHub Actions workflow setup and testing

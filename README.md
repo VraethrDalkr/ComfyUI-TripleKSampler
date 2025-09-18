@@ -12,6 +12,47 @@ This package provides triple-stage sampling workflow that implements:
 
 The nodes clone and patch models with sigma shift for optimal sampling without mutating the original models.
 
+## Key Differences from Native KSampler
+
+TripleKSampler implements a triple-stage architecture for Wan2.2 split models with Lightning LoRA:
+
+### Architecture
+- **Native KSampler**: Single-stage sampling with one model
+- **TripleKSampler**: Three-stage progression: Base → Lightning High → Lightning Low
+
+### Model Processing
+- **Native KSampler**: Operates directly on provided models
+- **TripleKSampler**: Uses ModelSamplingSD3 internally for sigma shift application
+
+### Parameter Management
+- **Native KSampler**: Manual step count with fixed CFG
+- **TripleKSampler**: Auto-calculation of stage transitions with separate CFG control per stage
+
+### Parameters
+- **TripleKSampler**: Specialized parameters for multi-stage workflow and Lightning LoRA integration
+
+### Use Case
+- **Native KSampler**: General-purpose single-model sampling
+- **TripleKSampler**: Wan2.2 + Lightning LoRA workflows
+
+## Installation
+
+1. Clone this repository to your ComfyUI custom_nodes directory:
+   ```bash
+   cd ComfyUI/custom_nodes/
+   git clone https://github.com/VraethrDalkr/ComfyUI-TripleKSampler.git
+   ```
+
+2. Install requirements (for TOML configuration support):
+   ```bash
+   cd ComfyUI-TripleKSampler
+   pip install -r requirements.txt
+   ```
+
+3. Restart ComfyUI
+
+4. The nodes will appear under `TripleKSampler/sampling` category
+
 ## Nodes
 
 ### TripleKSampler (Wan2.2-Lightning)
@@ -36,24 +77,6 @@ Variant with complete configurability:
 - **Lightning-start Aware**: Auto-calculation accounts for when Lightning processing begins
 - **Full Control**: Complete flexibility and testing capabilities
 
-## Installation
-
-1. Clone this repository to your ComfyUI custom_nodes directory:
-   ```bash
-   cd ComfyUI/custom_nodes/
-   git clone https://github.com/VraethrDalkr/ComfyUI-TripleKSampler.git
-   ```
-
-2. Install requirements (for TOML configuration support):
-   ```bash
-   cd ComfyUI-TripleKSampler
-   pip install -r requirements.txt
-   ```
-
-3. Restart ComfyUI
-
-4. The nodes will appear under `TripleKSampler/sampling` category
-
 ## Example Workflows
 
 Example workflows are included in the `example_workflows/` directory: `t2v_workflow.json` and `i2v_workflow.json`
@@ -70,18 +93,63 @@ Example workflows are included in the `example_workflows/` directory: `t2v_workf
 2. Connect conditioning and latent inputs
 
 3. Configure sampling parameters:
-   - `sigma_shift`: Sigma shift value
-   - `base_cfg`: CFG for base denoising (typically 3.5)
-   - `lightning_steps`: Total lightning steps (typically 8)
+   - `sigma_shift`: Sigma shift value (default: 5.0)
+   - `base_cfg`: CFG for base denoising (default: 3.5)
+   - `lightning_steps`: Total lightning steps (default: 8)
 
-4. Choose model switching strategy:
-   - **"50% of steps"**: Simple 50/50 split between lightning models
-   - **"Manual switch step"**: Precise step-based control
-   - **"T2V boundary"**: Auto-configured for text-to-video (0.875)
-   - **"I2V boundary"**: Auto-configured for image-to-video (0.900)
-   - **"Manual boundary"**: Custom sigma-based switching
+4. Choose model switching strategy (see Model Switching Strategies section for details)
 
 5. Optional: Enable **Dry Run** mode (Advanced node) to test configurations without sampling
+
+## Parameter Reference
+
+Parameters unique to TripleKSampler compared to native KSampler:
+
+### Core TripleKSampler Parameters
+
+**sigma_shift**
+- Applies ModelSamplingSD3 for sigma shift
+
+**base_steps** (Advanced node only)
+- Number of steps for Stage 1 (base high-noise model)
+- Use -1 for auto-calculation based on quality threshold
+- Auto-calculation ensures optimal transition between stages
+
+**lightning_start**
+- Starting step within the lightning schedule
+- Set to 0 to skip Stage 1 entirely
+- Default is 1 for standard three-stage workflow
+
+**lightning_steps**
+- Total steps for the lightning sampling process
+- Default is 8 in our nodes
+- Controls the resolution of the denoising schedule
+
+**base_cfg**
+- CFG scale for Stage 1 only
+- Default is 3.5 in our nodes
+- Separate from lightning_cfg for per-stage control
+
+**lightning_cfg** (Advanced node only)
+- CFG scale for Stage 2 and Stage 3
+- In the regular node, automatically set to 1.0
+- Independent control from base_cfg
+
+### Switching Strategies
+
+**switching_strategy**
+- Controls transition between lightning high and low models
+- Options: "50% of steps", "Manual switch step", "T2V boundary", "I2V boundary", "Manual boundary"
+- Manual modes ("Manual switch step", "Manual boundary") available in Advanced node only
+
+**switch_step** (Advanced node only)
+- Manual step number for switching (when using "Manual switch step")
+- Use -1 for auto-calculation at 50% of lightning steps
+
+**switch_boundary** (Advanced node only)
+- Sigma boundary value for switching (when using "Manual boundary")
+- Defaults to 0.875
+- T2V boundary strategy uses 0.875, I2V boundary strategy uses 0.900 (can be changed in config.toml)
 
 ### Parameter Guidelines
 
@@ -89,27 +157,6 @@ Example workflows are included in the `example_workflows/` directory: `t2v_workf
 - **base_cfg**: Experiment with different values based on your prompt
 - **lightning_steps**: Balance between quality and speed for your needs
 - **boundary**: 0.875 for text-to-video, 0.900 for image-to-video
-
-## Model Switching Strategies
-
-The Advanced node offers 5 switching strategies with dynamic UI that shows only relevant parameters:
-
-### 1. "50% of steps" (Auto-Midpoint)
-Simple approach that switches at 50% of lightning steps (rounded up). Reliable and straightforward.
-
-### 2. "Manual switch step"
-Allows precise control over the switching step. Shows switch_step parameter for manual configuration.
-
-### 3. "T2V boundary" (Auto-Boundary)
-Configured for text-to-video models, automatically uses boundary value of 0.875 for sigma-based switching.
-
-### 4. "I2V boundary" (Auto-Boundary)
-Configured for image-to-video models, automatically uses boundary value of 0.900 for sigma-based switching.
-
-### 5. "Manual boundary"
-Full control over sigma boundary value. Shows switch_boundary parameter for manual configuration.
-
-**Dynamic UI**: Only relevant parameters are shown based on the selected strategy, keeping the interface clean and focused.
 
 ## Configuration
 
@@ -147,16 +194,40 @@ level = "INFO"
 ```
 
 **Parameters:**
-- **`base_quality_threshold`**: Quality threshold for base model auto-calculation
+- **`base_quality_threshold`**: Minimum total steps constraint for base_steps auto-calculation
 - **`default_t2v`**: Default sigma boundary for text-to-video models (0.875)
 - **`default_i2v`**: Default sigma boundary for image-to-video models (0.900)
 - **`level`**: Logging level (`"DEBUG"` shows detailed calculations, `"INFO"` shows essential workflow info)
 
 The `config.toml` file is automatically created on first run and is gitignored to prevent conflicts during updates.
 
+## Model Switching Strategies
+
+The Advanced node offers 5 switching strategies with dynamic UI that shows only relevant parameters:
+
+### 1. "50% of steps" (Auto-Midpoint)
+Simple approach that switches at 50% of lightning steps (rounded up). Reliable and straightforward.
+
+### 2. "Manual switch step"
+Allows precise control over the switching step. Shows switch_step parameter for manual configuration.
+
+### 3. "T2V boundary" (Auto-Boundary)
+Configured for text-to-video models, automatically uses boundary value of 0.875 for sigma-based switching.
+
+### 4. "I2V boundary" (Auto-Boundary)
+Configured for image-to-video models, automatically uses boundary value of 0.900 for sigma-based switching.
+
+### 5. "Manual boundary"
+Full control over sigma boundary value. Shows switch_boundary parameter for manual configuration.
+
+**Dynamic UI**: Only relevant parameters are shown based on the selected strategy, keeping the interface clean and focused.
+
 ## Auto-Calculation Methods
 
-When you set `base_steps=-1` (Advanced node only), the node automatically calculates optimal values using one of three methods:
+The nodes provide intelligent auto-calculation for optimal parameter values:
+
+### Base Steps Auto-Calculation
+When you set `base_steps=-1` (Advanced node only), the node automatically calculates optimal Stage 1 steps using one of three methods:
 
 ### Simple Math
 **When**: `lightning_start=1` (default value)
@@ -173,7 +244,15 @@ When you set `base_steps=-1` (Advanced node only), the node automatically calcul
 **Behavior**: Uses approximation to get as close as possible to optimal alignment
 **Result**: Good alignment when exact alignment is mathematically impossible
 
-**Log Messages**: You'll see these method names in the console output when using auto-calculation, helping you understand which approach was used for your specific configuration.
+**Quality Threshold**: Uses `base_quality_threshold` from config to ensure sufficient base sampling resolution.
+
+### Switch Step Auto-Calculation
+When you set `switch_step=-1` (Advanced node only), the node automatically calculates the switching point:
+- Calculates 50% midpoint of lightning steps (rounded up)
+- Common switching point, but may require experimentation based on your scheduler
+- Provides balanced processing between lightning high and low models
+
+**Log Messages**: You'll see method names in the console output when using auto-calculation, helping you understand which approach was used for your specific configuration.
 
 ## Additional Features
 
