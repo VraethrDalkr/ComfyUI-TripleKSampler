@@ -5,6 +5,10 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.7.8] - 2025-09-17
+### Fixed
+- Complete GitHub Actions workflow setup and testing
+
 ## [0.7.7] - 2025-09-17
 ### Fixed
 - GitHub Actions publishing workflow testing
