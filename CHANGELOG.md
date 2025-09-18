@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.7.4] - 2024-09-17
+### Fixed
+- Update CHANGELOG.md for v0.7.3 that was missed in previous release
+- Enhanced CLAUDE.md with comprehensive version handling instructions
+- Verified version references are limited to pyproject.toml, __init__.py, and CHANGELOG.md
+
+## [0.7.3] - 2024-09-17
+### Fixed
+- Remove conflicting fields from pyproject.toml for ComfyUI-Manager compatibility
+- Removed 'classifiers' and 'requires-comfyui' fields causing installation conflicts
+
 ## [0.7.2] - 2024-09-17
 ### Changed
 - Repository made public for ComfyUI Registry and community access
