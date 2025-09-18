@@ -1,13 +1,10 @@
 [project]
 name = "tripleksampler"
-version = "0.7.2"
+version = "0.7.3"
 description = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
-classifiers = [
-  "Operating System :: OS Independent"
-]
 dynamic = ["dependencies"]
 
 [tool.setuptools.dynamic]
@@ -20,7 +17,6 @@ Repository = "https://github.com/VraethrDalkr/ComfyUI-TripleKSampler"
 [tool.comfy]
 PublisherId = "vraethrdalkr"
 DisplayName = "ComfyUI-TripleKSampler"
-requires-comfyui = ">=1.0.0"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
