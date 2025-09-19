@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.7.11] - 2025-09-18
+### Added
+- "Why TripleKSampler vs Multiple KSamplers?" documentation section explaining step resolution philosophy
+- Clear comparison between typical multi-KSampler setups and TripleKSampler approach
+- Design philosophy explanation for step resolution vs denoising percentage separation
+
+### Improved
+- Refined documentation to reduce redundancy while preserving functionality information
+- Added cross-references to detailed technical sections
+
 ## [0.7.10] - 2025-09-18
 ### Added
 - Edge Cases and Special Modes documentation section in README.md

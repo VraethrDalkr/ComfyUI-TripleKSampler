@@ -12,6 +12,43 @@ This package provides triple-stage sampling workflow that implements:
 
 The nodes clone and patch models with sigma shift for optimal sampling without mutating the original models.
 
+## Why TripleKSampler vs Multiple KSamplers?
+
+When working with Wan2.2 and Lightning LoRA, users often create workflows with multiple KSampler nodes. TripleKSampler offers a different approach to step allocation across the three stages.
+
+### Step Resolution Approaches (Example Comparison)
+
+**Example Multi-KSampler Setup:**
+```
+Total steps: 8 for all stages
+├── Base High: steps 0-2 of 8 (25% denoising)
+├── Lightning High: steps 2-4 of 8 (25% denoising)
+└── Lightning Low: steps 4-8 of 8 (50% denoising)
+```
+
+**Example TripleKSampler Approach:**
+```
+Different step resolution per stage purpose
+├── Base High: steps 0-5 of 20 (25% denoising)
+├── Lightning High: steps 2-4 of 8 (25% denoising)
+└── Lightning Low: steps 4-8 of 8 (50% denoising)
+```
+
+*These examples illustrate the design philosophy difference between approaches.*
+
+### Design Philosophy
+
+TripleKSampler separates step resolution from denoising percentage. The base model receives higher step resolution while Lightning stages use their native low steps schedule. This approach considers that base models were designed for longer step sequences, while Lightning LoRAs are optimized for fewer steps.
+
+### What TripleKSampler Handles
+
+- **Step Calculation**: Automatically determines optimal base model steps (see Auto-Calculation Methods section)
+- **Stage Transitions**: Ensures perfect denoising alignment without gaps or overlaps
+- **Multi-Model Coordination**: Manages three different models with their respective step requirements
+- **Configuration Validation**: Prevents parameter conflicts and stage errors
+
+The node automates the complex coordination needed for three-model workflows while maintaining proper denoising coverage across all stages.
+
 ## Key Differences from Native KSampler
 
 TripleKSampler implements a triple-stage architecture for Wan2.2 split models with Lightning LoRA:
