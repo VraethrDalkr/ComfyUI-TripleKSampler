@@ -270,6 +270,101 @@ class TripleKSamplerWan22Base:
         pct_end = self._calculate_percentage(end_safe, total_safe)
         return f"steps {start_safe}-{end_safe} of {total_safe} (denoising {pct_start:.1f}%–{pct_end:.1f}%)"
 
+    def _format_base_calculation_compact(self, base_calc_info: str) -> str:
+        """Format base calculation info for compact toast display."""
+        import re
+
+        # Pattern: "Auto-calculated base_steps = X, total_base_steps = Y (method)"
+        match1 = re.search(r'Auto-calculated base_steps = (\d+), total_base_steps = (\d+) \(([^)]+)\)', base_calc_info)
+        if match1:
+            base_steps, total_steps, method = match1.groups()
+            return f"Base steps: {base_steps}, Total: {total_steps} ({method})"
+
+        # Pattern: "Auto-calculated base_steps = X (fallback - no perfect alignment found)"
+        match2 = re.search(r'Auto-calculated base_steps = (\d+) \(([^)]+)\)', base_calc_info)
+        if match2:
+            base_steps, method_desc = match2.groups()
+            return f"Base steps: {base_steps} (fallback)"
+
+        # Pattern: "Auto-calculated total_base_steps = X for manual base_steps = Y"
+        match3 = re.search(r'Auto-calculated total_base_steps = (\d+) for manual base_steps = (\d+)', base_calc_info)
+        if match3:
+            total_steps, manual_steps = match3.groups()
+            return f"Base steps: {manual_steps}, Total: {total_steps} (manual)"
+
+        # Fallback: return original if no pattern matches
+        return base_calc_info
+
+    def _format_switch_info_compact(self, switch_info: str) -> str:
+        """Format model switching info for compact toast display."""
+        import re
+
+        # Pattern: "Model switching: STRATEGY (boundary = VALUE) → switch at step X of Y"
+        match1 = re.search(r'Model switching: ([^(]+) \(boundary = ([^)]+)\) → switch at step (\d+) of (\d+)', switch_info)
+        if match1:
+            strategy, boundary, switch_step, total_steps = match1.groups()
+            return f"Switch: {strategy.strip()} → step {switch_step} of {total_steps}"
+
+        # Pattern: "Model switching: STRATEGY → switch at step X of Y"
+        match2 = re.search(r'Model switching: ([^→]+) → switch at step (\d+) of (\d+)', switch_info)
+        if match2:
+            strategy, switch_step, total_steps = match2.groups()
+            return f"Switch: {strategy.strip()} → step {switch_step} of {total_steps}"
+
+        # Fallback: return original if no pattern matches
+        return switch_info
+
+    def _send_dry_run_notification(
+        self,
+        stage1_info: str,
+        stage2_info: str,
+        stage3_info: str,
+        base_calculation_info: str = "",
+        model_switching_info: str = "",
+    ) -> None:
+        """Send a toast notification summarizing dry run results."""
+        # Format the summary with calculated insights and stage information
+        summary_lines = []
+
+        # Add calculation insights if available
+        if base_calculation_info or model_switching_info:
+            summary_lines.append("Calculations:")
+
+            if base_calculation_info:
+                # Transform verbose base calculation info into compact format
+                formatted_base = self._format_base_calculation_compact(base_calculation_info)
+                summary_lines.append(f"• {formatted_base}")
+
+            if model_switching_info:
+                # Transform verbose model switching info into compact format
+                formatted_switch = self._format_switch_info_compact(model_switching_info)
+                summary_lines.append(f"• {formatted_switch}")
+
+            summary_lines.append("")
+
+        # Always add stage configuration
+        summary_lines.extend([
+            "Stage Configuration:",
+            f"• {stage1_info}",
+            f"• {stage2_info}",
+            f"• {stage3_info}",
+        ])
+
+        detail_text = "\n".join(summary_lines)
+
+        # Send toast notification via ComfyUI message system (if available)
+        try:
+            if hasattr(PromptServer, 'instance') and PromptServer.instance:
+                PromptServer.instance.send_sync("triple_ksampler_dry_run", {
+                    "severity": "info",
+                    "summary": "TripleKSampler: Dry Run Complete",
+                    "detail": detail_text,
+                    "life": 12000,  # 12 seconds for readability
+                })
+        except Exception:
+            # Silently fail if PromptServer is not available (e.g., during testing)
+            pass
+
     def _compute_boundary_switching_step(
         self, sampling: Any, scheduler: str, steps: int, boundary: float
     ) -> int:
@@ -401,6 +496,16 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 # Base parameters
                 "seed": base_inputs["seed"],
                 "sigma_shift": base_inputs["sigma_shift"],
+                "base_quality_threshold": (
+                    "INT",
+                    {
+                        "default": _DEFAULT_BASE_QUALITY_THRESHOLD,
+                        "min": 1,
+                        "max": 100,
+                        "step": 1,
+                        "tooltip": f"Minimum total steps for base_steps auto-calculation (config default: {_BASE_QUALITY_THRESHOLD}). Only applies when base_steps=-1.",
+                    },
+                ),
                 "base_steps": (
                     "INT",
                     {
@@ -435,13 +540,6 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 # Sampler parameters
                 "sampler_name": base_inputs["sampler_name"],
                 "scheduler": base_inputs["scheduler"],
-                "dry_run": (
-                    "BOOLEAN",
-                    {
-                        "default": False,
-                        "tooltip": "Enable dry run for config testing without sampling.",
-                    },
-                ),
                 "switch_strategy": (
                     [
                         "50% of steps",
@@ -476,6 +574,13 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         "tooltip": "Sigma boundary for switching. Defaults to 0.875. T2V/I2V strategies use preset values.",
                     },
                 ),
+                "dry_run": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Enable dry run mode to bypass sampling and return a tiny latent for testing.",
+                    },
+                ),
             },
         }
 
@@ -495,6 +600,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         seed: int,
         sigma_shift: float,
         base_steps: int,
+        base_quality_threshold: int,
         base_cfg: float,
         lightning_start: int,
         lightning_steps: int,
@@ -507,11 +613,18 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         dry_run: bool = False,
     ) -> Tuple[Dict[str, torch.Tensor], ...]:
         """Perform the triple-stage sampling run and return final latent tuple."""
+        # Check if dry run mode was requested via context menu or parameter
+        context_dry_run = getattr(self, '_dry_run_requested', False)
+        dry_run = dry_run or context_dry_run
+        # Reset the context menu flag after checking
+        if hasattr(self, '_dry_run_requested'):
+            delattr(self, '_dry_run_requested')
+
         if str(_LOG_LEVEL).upper() == "DEBUG":
             bare_logger.info("")
         logger.debug("=== TripleKSampler Node - Input Parameters ===")
         logger.debug("Sampling: seed=%d, sigma_shift=%.3f", seed, sigma_shift)
-        logger.debug("Base stage: base_steps=%d, base_cfg=%.1f", base_steps, base_cfg)
+        logger.debug("Base stage: base_steps=%d, base_quality_threshold=%d, base_cfg=%.1f", base_steps, base_quality_threshold, base_cfg)
         logger.debug(
             "Lightning: lightning_start=%d, lightning_steps=%d, lightning_cfg=%.1f",
             lightning_start,
@@ -525,10 +638,14 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         elif switch_strategy == "Manual switch step":
             logger.debug("  switch_step=%d", switch_step)
         logger.debug(
-            "Configuration: BASE_QUALITY_THRESHOLD=%d, DRY_RUN=%s",
+            "Loaded config defaults: BASE_QUALITY_THRESHOLD=%d, DRY_RUN=%s",
             _BASE_QUALITY_THRESHOLD,
             dry_run,
         )
+
+        # Variables to capture calculation info for dry run notification
+        base_calculation_info = ""
+        model_switching_info = ""
 
         # Basic validation
         if lightning_steps < 2:
@@ -551,30 +668,25 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
 
         bare_logger.info("")  # separator before calculation logs
 
+        # Use the provided base quality threshold
+        effective_threshold = base_quality_threshold
+
         # Calculate base_steps and total_base_steps
         optimal_total_base_steps = None
         if base_steps == -1:
             base_steps, optimal_total_base_steps, method = self._calculate_perfect_alignment(
-                _BASE_QUALITY_THRESHOLD, lightning_start, lightning_steps
+                effective_threshold, lightning_start, lightning_steps
             )
             if lightning_start > 0:
                 if method == "mathematical_search":
-                    logger.info(
-                        "Auto-calculated base_steps = %d, total_base_steps = %d (mathematical search)",
-                        base_steps,
-                        optimal_total_base_steps,
-                    )
+                    base_calculation_info = f"Auto-calculated base_steps = {base_steps}, total_base_steps = {optimal_total_base_steps} (mathematical search)"
+                    logger.info(base_calculation_info)
                 elif method == "simple_math":
-                    logger.info(
-                        "Auto-calculated base_steps = %d, total_base_steps = %d (simple math)",
-                        base_steps,
-                        optimal_total_base_steps,
-                    )
+                    base_calculation_info = f"Auto-calculated base_steps = {base_steps}, total_base_steps = {optimal_total_base_steps} (simple math)"
+                    logger.info(base_calculation_info)
                 else:
-                    logger.info(
-                        "Auto-calculated base_steps = %d (fallback - no perfect alignment found)",
-                        base_steps,
-                    )
+                    base_calculation_info = f"Auto-calculated base_steps = {base_steps} (fallback - no perfect alignment found)"
+                    logger.info(base_calculation_info)
         else:
             if lightning_start == 0 and base_steps == 0:
                 optimal_total_base_steps = 0
@@ -582,11 +694,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 # manual base_steps -> compute total_base_steps for alignment checks
                 optimal_total_base_steps = math.floor(base_steps * lightning_steps / max(1, lightning_start))
                 optimal_total_base_steps = max(optimal_total_base_steps, base_steps)
-                logger.info(
-                    "Auto-calculated total_base_steps = %d for manual base_steps = %d",
-                    optimal_total_base_steps,
-                    base_steps,
-                )
+                base_calculation_info = f"Auto-calculated total_base_steps = {optimal_total_base_steps} for manual base_steps = {base_steps}"
+                logger.info(base_calculation_info)
                 # === Stage overlap check ===
                 if lightning_start > 0 and base_steps > 0 and optimal_total_base_steps > 0:
                     stage1_end_pct = base_steps / optimal_total_base_steps
@@ -676,20 +785,11 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                     if switch_strategy == "I2V boundary"
                     else switch_boundary
                 )
-                logger.info(
-                    "Model switching: %s (boundary = %s) → switch at step %d of %d",
-                    effective_strategy,
-                    boundary_value,
-                    switch_step_final,
-                    lightning_steps,
-                )
+                model_switching_info = f"Model switching: {effective_strategy} (boundary = {boundary_value}) → switch at step {switch_step_final} of {lightning_steps}"
+                logger.info(model_switching_info)
             else:
-                logger.info(
-                    "Model switching: %s → switch at step %d of %d",
-                    effective_strategy,
-                    switch_step_final,
-                    lightning_steps,
-                )
+                model_switching_info = f"Model switching: {effective_strategy} → switch at step {switch_step_final} of {lightning_steps}"
+                logger.info(model_switching_info)
 
             if lightning_start == switch_step_final:
                 skip_stage2 = True
@@ -707,13 +807,14 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             logger.info("Lightning-only mode: base_steps not applicable (Stage 1 skipped)")
             bare_logger.info("")  # separator before skipped stage log
             logger.info("Stage 1: Skipped (Lightning-only mode)")
+            stage1_info = "Skipped (Lightning-only mode)"
             stage1_output = latent_image
         else:
             if optimal_total_base_steps is not None:
                 total_base_steps = optimal_total_base_steps
             else:
                 _, total_base_steps, _ = self._calculate_perfect_alignment(
-                    _BASE_QUALITY_THRESHOLD, lightning_start, lightning_steps
+                    effective_threshold, lightning_start, lightning_steps
                 )
 
             stage1_info = self._format_stage_range(0, base_steps, total_base_steps)
@@ -741,6 +842,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         if skip_stage2:
             bare_logger.info("")  # separator before skipped stage log
             logger.info("Stage 2: Skipped (%s)", stage2_skip_reason)
+            stage2_info = f"Skipped ({stage2_skip_reason})"
             stage2_output = stage1_output
         else:
             stage2_info = self._format_stage_range(lightning_start, switch_step_final, lightning_steps)
@@ -790,6 +892,15 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         if dry_run:
             logger.info("[DRY RUN] Complete - calculations performed, no sampling executed")
             bare_logger.info("")
+
+            # Send toast notification with dry run summary
+            self._send_dry_run_notification(
+                stage1_info=stage1_info,
+                stage2_info=stage2_info,
+                stage3_info=stage3_info,
+                base_calculation_info=base_calculation_info,
+                model_switching_info=model_switching_info
+            )
 
             # Create a minimal 8x8 latent to speed up downstream VAE processing
             original_samples = latent_image.get("samples")
@@ -864,6 +975,7 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
         seed: int,
         sigma_shift: float,
         base_steps: int = -1,
+        base_quality_threshold: int = _DEFAULT_BASE_QUALITY_THRESHOLD,
         base_cfg: float = 3.5,
         lightning_start: int = 1,
         lightning_steps: int = 8,
@@ -877,7 +989,7 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
     ) -> Tuple[Dict[str, torch.Tensor], ...]:
         """Delegate to the advanced implementation with simplified defaults."""
         # Unused parameters intentionally deleted to make intent clear
-        del base_steps, lightning_cfg, switch_boundary, switch_step, dry_run  # type: ignore
+        del base_steps, base_quality_threshold, lightning_cfg, switch_boundary, switch_step  # type: ignore
         return super().sample(
             base_high=base_high,
             lightning_high=lightning_high,
@@ -897,8 +1009,14 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
             switch_strategy=switch_strategy,
             switch_boundary=0.875,
             switch_step=-1,
-            dry_run=False,
+            base_quality_threshold=_DEFAULT_BASE_QUALITY_THRESHOLD,
+            dry_run=dry_run,
         )
+
+    def run_dry_run(self):
+        """Method to be called from context menu to enable dry run mode."""
+        self._dry_run_requested = True
+        return ("Dry run mode enabled for next execution",)
 
 
 # Node registration mapping (ComfyUI expects these names)

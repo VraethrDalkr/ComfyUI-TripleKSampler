@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.8.0] - 2025-09-19
+### Added
+- `base_quality_threshold` parameter exposed in Advanced node UI for runtime configuration
+- Dynamic widget visibility: parameter only shows when `base_steps = -1` (auto-calculation mode)
+- Enhanced dry run mode with toast notifications showing calculated values
+- Comprehensive test coverage for experimental UI features
+
+### Changed
+- **BREAKING**: Parameter reordering in Advanced node requires workflow recreation
+- `dry_run` parameter moved to end of required parameters for better organization
+- `base_quality_threshold` moved from required to optional section to fix ComfyUI validation
+- Parameter range changed from `-1 to 100` to `1 to 100` with config.toml default (20)
+- Updated example workflows to reflect new parameter layout
+
+### Fixed
+- Widget value preservation during dynamic visibility changes
+- Parameter validation for new base_quality_threshold range
+- Test suite updated for breaking changes
+
 ## [0.7.11] - 2025-09-18
 ### Added
 - "Why TripleKSampler vs Multiple KSamplers?" documentation section explaining step resolution philosophy
