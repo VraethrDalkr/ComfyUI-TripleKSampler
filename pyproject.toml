@@ -17,3 +17,13 @@ Repository = "https://github.com/VraethrDalkr/ComfyUI-TripleKSampler"
 [tool.comfy]
 PublisherId = "vraethrdalkr"
 DisplayName = "ComfyUI-TripleKSampler"
+
+[tool.pyright]
+include = ["nodes.py", "__init__.py"]
+exclude = ["tests/**"]
+reportMissingImports = false
+reportAttributeAccessIssue = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+pythonVersion = "3.12"
+typeCheckingMode = "basic"

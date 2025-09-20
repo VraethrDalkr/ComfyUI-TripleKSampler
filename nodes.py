@@ -23,11 +23,20 @@ import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
 from server import PromptServer
 
-# Hardcoded default values
+# Configuration default values
 _DEFAULT_BASE_QUALITY_THRESHOLD = 20
 _DEFAULT_BOUNDARY_T2V = 0.875
 _DEFAULT_BOUNDARY_I2V = 0.900
 _DEFAULT_LOG_LEVEL = "INFO"
+
+# Algorithm constants
+STAGE3_SEED_OFFSET = 1  # Ensure Stage 3 uses different noise pattern
+SIMPLE_NODE_LIGHTNING_CFG = 1.0  # Fixed CFG value for Simple node's lightning stages
+MIN_LATENT_HEIGHT = 1   # Minimal latent height for dry run
+MIN_LATENT_WIDTH = 8    # Minimal latent width for dry run (8x8 for VAE compatibility)
+TOAST_LIFE_OVERLAP = 8000    # Toast notification duration for overlap warnings (ms)
+TOAST_LIFE_DRY_RUN = 12000   # Toast notification duration for dry run results (ms)
+SEARCH_LIMIT_MULTIPLIER = 1  # Additional steps to search beyond threshold for alignment
 
 
 def _load_config() -> Dict[str, Any]:
@@ -126,18 +135,34 @@ _LOG_LEVEL = _CONFIG.get("logging", {}).get("level", _DEFAULT_LOG_LEVEL)
 
 
 def _get_log_level() -> int:
-    """
-    Convert LOG_LEVEL string from configuration to logging level constant.
+    """Convert LOG_LEVEL string from configuration to logging level constant.
 
     Only supports DEBUG and INFO levels. WARNING and ERROR messages
     are always shown regardless of LOG_LEVEL setting.
+
+    Returns:
+        int: logging level constant (DEBUG or INFO)
     """
     if str(_LOG_LEVEL).upper() == "DEBUG":
         return logging.DEBUG
     return logging.INFO
 
 
-# Configure module logger
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+#
+# TripleKSampler uses a dual-logger system:
+# 1. Main logger: Structured messages with [TripleKSampler] prefix
+# 2. Bare logger: Clean visual separators without prefixes
+#
+# The log level is controlled by config.toml [logging] level setting:
+# - "DEBUG": Shows all messages including detailed calculations
+# - "INFO": Shows essential workflow information only
+# - WARNING and ERROR always appear regardless of level
+# ============================================================================
+
+# Configure main logger for structured messages
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     handler = logging.StreamHandler()
@@ -147,14 +172,14 @@ if not logger.handlers:
 logger.propagate = False
 logger.setLevel(_get_log_level())
 
-# Bare logger for separator lines (keeps output tidy)
+# Configure bare logger for visual separators (clean empty lines)
 bare_logger = logging.getLogger("TripleKSampler.separator")
 if not bare_logger.handlers:
     bare_handler = logging.StreamHandler()
-    bare_handler.setFormatter(logging.Formatter(""))
+    bare_handler.setFormatter(logging.Formatter(""))  # No formatting for clean output
     bare_logger.addHandler(bare_handler)
 bare_logger.propagate = False
-bare_logger.setLevel(logging.INFO)
+bare_logger.setLevel(logging.INFO)  # Always show separators
 
 
 class TripleKSamplerWan22Base:
@@ -224,45 +249,64 @@ class TripleKSamplerWan22Base:
     ) -> Tuple[int, int, str]:
         """Calculate base_steps and total_base_steps for perfect alignment.
 
+        Perfect alignment ensures Stage 1 end exactly matches Stage 2 start in the
+        denoising schedule. This prevents gaps or overlaps between stages.
+
         Returns:
             (base_steps, total_base_steps, method_used) where method_used is one of:
             "simple_math", "mathematical_search", "fallback".
         """
         if lightning_start == 1:
+            # Simple case: lightning starts at step 1, direct calculation possible
+            # Formula: base_steps/total_base_steps = lightning_start/lightning_steps
             base_steps = math.ceil(base_quality_threshold / lightning_steps)
             total_base_steps = base_steps * lightning_steps
             return base_steps, total_base_steps, "simple_math"
 
-        # Complex case: search for integer candidate that divides cleanly
-        search_limit = base_quality_threshold + lightning_steps
+        # Complex case: lightning_start > 1, need perfect integer alignment
+        # Search for total_base_steps where (total_base_steps * lightning_start) is divisible by lightning_steps
+        search_limit = base_quality_threshold + (lightning_steps * SEARCH_LIMIT_MULTIPLIER)
         for candidate_total in range(base_quality_threshold, search_limit):
             if (candidate_total * lightning_start) % lightning_steps == 0:
                 base_steps = (candidate_total * lightning_start) // lightning_steps
                 return base_steps, candidate_total, "mathematical_search"
 
-        # Fallback (no exact alignment found)
+        # Fallback: no perfect alignment found within search range
+        # Use approximation to get as close as possible to optimal alignment
         base_steps = math.ceil(base_quality_threshold * lightning_start / lightning_steps)
         optimal_total = base_steps * lightning_steps / lightning_start
         total_base_steps = max(int(math.ceil(optimal_total)), base_quality_threshold)
         return base_steps, total_base_steps, "fallback"
 
     def _get_model_patcher(self) -> ModelSamplingSD3:
-        """Return a ModelSamplingSD3 instance used to patch models."""
+        """Return a ModelSamplingSD3 instance for sigma shift patching."""
         return ModelSamplingSD3()
 
     def _canonicalize_shift(self, value: float) -> float:
-        """Normalize shift value to a Python float."""
+        """Convert shift value to Python float for consistent processing."""
         return float(value)
 
     def _calculate_percentage(self, numerator: float, denominator: float) -> float:
-        """Return a percentage (0.0–100.0) rounded to one decimal place."""
+        """Calculate percentage with division-by-zero protection and bounds clamping."""
         if denominator == 0:
             return 0.0
         pct = (float(numerator) / float(denominator)) * 100.0
         return round(max(0.0, min(100.0, pct)), 1)
 
     def _format_stage_range(self, start: int, end: int, total: int) -> str:
-        """Return a human-readable string describing step ranges and denoising pct."""
+        """Return a human-readable string describing step ranges and denoising percentages.
+
+        Creates informative log messages showing both step ranges and corresponding
+        denoising percentages for each sampling stage.
+
+        Args:
+            start: Starting step number
+            end: Ending step number
+            total: Total steps in the schedule
+
+        Returns:
+            str: Formatted string like "steps 0-5 of 20 (denoising 0.0%-25.0%)"
+        """
         start_safe = int(max(0, start))
         end_safe = int(max(start_safe, end))
         total_safe = int(max(1, total))
@@ -271,7 +315,18 @@ class TripleKSamplerWan22Base:
         return f"steps {start_safe}-{end_safe} of {total_safe} (denoising {pct_start:.1f}%–{pct_end:.1f}%)"
 
     def _format_base_calculation_compact(self, base_calc_info: str) -> str:
-        """Format base calculation info for compact toast display."""
+        """Format base calculation info for compact toast display.
+
+        Converts verbose calculation log messages into concise format suitable
+        for UI toast notifications. Handles different calculation scenarios
+        (auto-calculated, manual, fallback).
+
+        Args:
+            base_calc_info: Original verbose calculation message
+
+        Returns:
+            str: Compact formatted message for toast display
+        """
         import re
 
         # Pattern: "Auto-calculated base_steps = X, total_base_steps = Y (method)"
@@ -283,7 +338,7 @@ class TripleKSamplerWan22Base:
         # Pattern: "Auto-calculated base_steps = X (fallback - no perfect alignment found)"
         match2 = re.search(r'Auto-calculated base_steps = (\d+) \(([^)]+)\)', base_calc_info)
         if match2:
-            base_steps, method_desc = match2.groups()
+            base_steps, _ = match2.groups()  # method_desc not used but preserved for clarity
             return f"Base steps: {base_steps} (fallback)"
 
         # Pattern: "Auto-calculated total_base_steps = X for manual base_steps = Y"
@@ -296,13 +351,24 @@ class TripleKSamplerWan22Base:
         return base_calc_info
 
     def _format_switch_info_compact(self, switch_info: str) -> str:
-        """Format model switching info for compact toast display."""
+        """Format model switching info for compact toast display.
+
+        Converts verbose switching strategy log messages into concise format
+        suitable for UI toast notifications. Handles boundary-based and
+        step-based switching strategies.
+
+        Args:
+            switch_info: Original verbose switching message
+
+        Returns:
+            str: Compact formatted message for toast display
+        """
         import re
 
         # Pattern: "Model switching: STRATEGY (boundary = VALUE) → switch at step X of Y"
         match1 = re.search(r'Model switching: ([^(]+) \(boundary = ([^)]+)\) → switch at step (\d+) of (\d+)', switch_info)
         if match1:
-            strategy, boundary, switch_step, total_steps = match1.groups()
+            strategy, _, switch_step, total_steps = match1.groups()  # boundary not used but preserved
             return f"Switch: {strategy.strip()} → step {switch_step} of {total_steps}"
 
         # Pattern: "Model switching: STRATEGY → switch at step X of Y"
@@ -359,7 +425,7 @@ class TripleKSamplerWan22Base:
                     "severity": "info",
                     "summary": "TripleKSampler: Dry Run Complete",
                     "detail": detail_text,
-                    "life": 12000,  # 12 seconds for readability
+                    "life": TOAST_LIFE_DRY_RUN,
                 })
         except Exception:
             # Silently fail if PromptServer is not available (e.g., during testing)
@@ -370,37 +436,146 @@ class TripleKSamplerWan22Base:
     ) -> int:
         """Compute the switch step index from sigmas and a boundary value.
 
+        This method implements sigma-based model switching, which is more accurate
+        than step-based switching because it accounts for the actual noise schedule.
+        Different schedulers have different sigma curves, so this ensures consistent
+        switching behavior across schedulers.
+
         Args:
             sampling: model_sampling object returned by the patched model.
             scheduler: scheduler name.
             steps: number of lightning steps.
-            boundary: boundary value between 0 and 1.
+            boundary: boundary value between 0 and 1 (normalized timestep).
 
         Returns:
             int: step index in [0, steps-1] where sigma crosses the boundary.
         """
+        # Calculate the sigma schedule for the given steps and scheduler
         sigmas = comfy.samplers.calculate_sigmas(sampling, scheduler, steps)
         timesteps: List[float] = []
 
+        # Convert sigmas to normalized timesteps (0-1 range)
         for sigma in sigmas:
-            # convert tensor-like sigma values to float timesteps (defensive)
+            # Handle both tensor and scalar sigma values defensively
             try:
                 sigma_val = float(sigma.item())
             except Exception:
                 sigma_val = float(sigma)
+            # Convert to normalized timestep: sampling.timestep() returns 0-1000, normalize to 0-1
             timestep = sampling.timestep(sigma_val) / 1000.0
             timesteps.append(timestep)
 
+        # Find the first step where timestep drops below the boundary
+        # This identifies the transition point in the denoising schedule
         switching_step = steps
         for i, timestep in enumerate(timesteps[1:], start=1):
             if timestep < float(boundary):
                 switching_step = i
                 break
 
+        # Ensure switching step is within valid range
         if switching_step >= steps:
             switching_step = steps - 1
 
         return int(switching_step)
+
+    def _validate_basic_parameters(
+        self,
+        lightning_steps: int,
+        lightning_start: int,
+        switch_strategy: str,
+        switch_step: int,
+    ) -> None:
+        """Validate basic input parameters that don't depend on auto-calculated values.
+
+        Args:
+            lightning_steps: Total steps for lightning stages
+            lightning_start: Starting step within lightning schedule
+            switch_strategy: Strategy for model switching
+            switch_step: Manual switch step (when using manual strategy)
+
+        Raises:
+            ValueError: if any parameter validation fails
+        """
+        # Basic lightning parameters validation
+        if lightning_steps < 2:
+            raise ValueError("lightning_steps must be at least 2.")
+        if not (0 <= lightning_start < lightning_steps):
+            raise ValueError("lightning_start must be within [0, lightning_steps-1].")
+
+        # Manual switch step validation
+        if switch_strategy == "Manual switch step" and switch_step != -1:
+            if switch_step < 0:
+                raise ValueError(f"switch_step ({switch_step}) must be >= 0")
+            if switch_step >= lightning_steps:
+                raise ValueError(
+                    f"switch_step ({switch_step}) must be < lightning_steps ({lightning_steps})"
+                )
+            if switch_step < lightning_start:
+                raise ValueError(
+                    f"switch_step ({switch_step}) cannot be less than lightning_start ({lightning_start}). "
+                    "If you want low-noise only, set lightning_start=0 as well."
+                )
+
+    def _validate_resolved_parameters(
+        self,
+        lightning_start: int,
+        base_steps: int,
+    ) -> None:
+        """Validate parameters after auto-calculation has resolved base_steps.
+
+        Args:
+            lightning_start: Starting step within lightning schedule
+            base_steps: Resolved steps for base model (no longer -1)
+
+        Raises:
+            ValueError: if resolved parameter validation fails
+        """
+        # Base steps and lightning_start relationship validation (after auto-calculation)
+        if lightning_start > 0 and base_steps < 1:
+            raise ValueError("base_steps must be >= 1 when lightning_start > 0.")
+        if base_steps == 0 and lightning_start != 0:
+            raise ValueError("base_steps = 0 is only allowed when lightning_start = 0 (Stage 1 skip mode)")
+
+    def _validate_special_modes(
+        self,
+        lightning_start: int,
+        lightning_steps: int,
+        base_steps: int,
+        switch_strategy: str,
+        switch_step: int,
+    ) -> None:
+        """Validate special mode configurations (lightning-only, skip modes).
+
+        Args:
+            lightning_start: Starting step within lightning schedule
+            lightning_steps: Total steps for lightning stages
+            base_steps: Steps for base model
+            switch_strategy: Strategy for model switching
+            switch_step: Manual switch step
+
+        Raises:
+            ValueError: if special mode configuration is invalid
+        """
+        # Lightning-only mode validation
+        if lightning_start == 0:
+            temp_switch_step = None
+            if switch_strategy == "Manual switch step":
+                temp_switch_step = switch_step if switch_step != -1 else lightning_steps // 2
+            elif switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
+                temp_switch_step = 1
+            else:
+                temp_switch_step = math.ceil(lightning_steps / 2)
+
+            if temp_switch_step == 0 and base_steps > 0:
+                raise ValueError("When skipping both Stage 1 and Stage 2, base_steps must be -1 or 0")
+
+        # Stage 1 skip mode enforcement
+        if lightning_start == 0 and base_steps > 0:
+            raise ValueError(
+                "Set base_steps=0 or base_steps=-1 for Lightning-only mode, "
+                "or increase lightning_start to use base denoising."
+            )
 
     def _run_sampling_stage(
         self,
@@ -473,6 +648,129 @@ class TripleKSamplerWan22Base:
             raise RuntimeError(f"{stage_name}: sampling failed.") from exc
 
         return result
+
+    def _patch_models_for_sampling(
+        self,
+        base_high: Any,
+        lightning_high: Any,
+        lightning_low: Any,
+        sigma_shift: float,
+    ) -> Tuple[Any, Any, Any]:
+        """Patch all models with sigma shift for sampling.
+
+        Args:
+            base_high: Base high-noise model
+            lightning_high: Lightning high-noise model
+            lightning_low: Lightning low-noise model
+            sigma_shift: Sigma adjustment value
+
+        Returns:
+            Tuple of (patched_base_high, patched_lightning_high, patched_lightning_low)
+        """
+        # Apply sigma shift using ModelSamplingSD3 (non-mutating)
+        patcher = self._get_model_patcher()
+        shift_value = self._canonicalize_shift(sigma_shift)
+
+        patched_base_high = patcher.patch(base_high, shift_value)[0]
+        patched_lightning_high = patcher.patch(lightning_high, shift_value)[0]
+        patched_lightning_low = patcher.patch(lightning_low, shift_value)[0]
+
+        return patched_base_high, patched_lightning_high, patched_lightning_low
+
+    def _calculate_switch_step_and_strategy(
+        self,
+        switch_strategy: str,
+        switch_step: int,
+        switch_boundary: float,
+        lightning_steps: int,
+        patched_lightning_high: Any,
+        scheduler: str,
+    ) -> Tuple[int, str, str]:
+        """Calculate the switch step and effective strategy information.
+
+        Args:
+            switch_strategy: Strategy for model switching
+            switch_step: Manual switch step value
+            switch_boundary: Manual boundary value
+            lightning_steps: Total lightning steps
+            patched_lightning_high: Patched lightning high model for boundary calculations
+            scheduler: Scheduler name
+
+        Returns:
+            Tuple of (switch_step_final, effective_strategy, model_switching_info)
+        """
+        model_switching_info = ""
+
+        if switch_strategy == "Manual switch step":
+            if switch_step == -1:
+                switch_step_calculated = lightning_steps // 2
+                effective_strategy = "50% of steps (auto)"
+            else:
+                switch_step_calculated = switch_step
+                effective_strategy = "Manual switch step"
+        elif switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
+            if switch_strategy == "T2V boundary":
+                boundary_value = _BOUNDARY_T2V
+            elif switch_strategy == "I2V boundary":
+                boundary_value = _BOUNDARY_I2V
+            else:
+                boundary_value = switch_boundary
+
+            sampling = patched_lightning_high.get_model_object("model_sampling")
+            switch_step_calculated = self._compute_boundary_switching_step(
+                sampling, scheduler, lightning_steps, boundary_value
+            )
+            effective_strategy = switch_strategy
+        else:
+            # Default to 50% of steps
+            switch_step_calculated = math.ceil(lightning_steps / 2)
+            effective_strategy = switch_strategy
+
+        switch_step_final = int(switch_step_calculated)
+
+        # Generate switching info for logging
+        if switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
+            boundary_value = (
+                _BOUNDARY_T2V
+                if switch_strategy == "T2V boundary"
+                else _BOUNDARY_I2V
+                if switch_strategy == "I2V boundary"
+                else switch_boundary
+            )
+            model_switching_info = f"Model switching: {effective_strategy} (boundary = {boundary_value}) → switch at step {switch_step_final} of {lightning_steps}"
+        else:
+            model_switching_info = f"Model switching: {effective_strategy} → switch at step {switch_step_final} of {lightning_steps}"
+
+        return switch_step_final, effective_strategy, model_switching_info
+
+    def _create_dry_run_minimal_latent(self, original_latent: Dict[str, torch.Tensor]) -> Tuple[Dict[str, torch.Tensor], ...]:
+        """Create minimal latent tensor for dry run mode.
+
+        Generates a small latent tensor to speed up downstream VAE processing
+        during dry run testing. Maintains device and dtype compatibility with
+        the original latent.
+
+        Args:
+            original_latent: Original latent dict containing 'samples' tensor
+
+        Returns:
+            Tuple containing dict with minimal latent tensor
+        """
+        original_samples = original_latent.get("samples")
+        if original_samples is not None:
+            device = original_samples.device
+            dtype = original_samples.dtype
+            channels = original_samples.shape[1]
+            # Create minimal 8x8 latent compatible with VAE processing
+            small_latent_tensor = torch.zeros(
+                (1, channels, MIN_LATENT_HEIGHT, MIN_LATENT_WIDTH, MIN_LATENT_WIDTH),
+                device=device,
+                dtype=dtype
+            )
+            return ({"samples": small_latent_tensor},)
+
+        # Fallback if no samples found
+        return (original_latent,)
 
 
 class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
@@ -647,24 +945,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         base_calculation_info = ""
         model_switching_info = ""
 
-        # Basic validation
-        if lightning_steps < 2:
-            raise ValueError("lightning_steps must be at least 2.")
-        if not (0 <= lightning_start < lightning_steps):
-            raise ValueError("lightning_start must be within [0, lightning_steps-1].")
-
-        if switch_strategy == "Manual switch step" and switch_step != -1:
-            if switch_step < 0:
-                raise ValueError(f"switch_step ({switch_step}) must be >= 0")
-            if switch_step >= lightning_steps:
-                raise ValueError(
-                    f"switch_step ({switch_step}) must be < lightning_steps ({lightning_steps})"
-                )
-            if switch_step < lightning_start:
-                raise ValueError(
-                    f"switch_step ({switch_step}) cannot be less than lightning_start ({lightning_start}). "
-                    "If you want low-noise only, set lightning_start=0 as well."
-                )
+        # Early validation (before auto-calculation resolves base_steps)
+        self._validate_basic_parameters(lightning_steps, lightning_start, switch_strategy, switch_step)
 
         bare_logger.info("")  # separator before calculation logs
 
@@ -711,59 +993,24 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                             "severity": "warn",
                             "summary": "TripleKSampler: Stage overlap",
                             "detail": f"Stage 1 and Stage 2 overlap by {overlap_pct:.1f}%. Consider base_steps=-1 or adjust lightning parameters.",
-                            "life": 8000,
+                            "life": TOAST_LIFE_OVERLAP,
                         })
 
-        if lightning_start > 0 and base_steps < 1:
-            raise ValueError("base_steps must be >= 1 when lightning_start > 0.")
-        if base_steps == 0 and lightning_start != 0:
-            raise ValueError("base_steps = 0 is only allowed when lightning_start = 0 (Stage 1 skip mode)")
+        # Validate resolved parameters after auto-calculation
+        self._validate_resolved_parameters(lightning_start, base_steps)
 
-        if lightning_start == 0:
-            temp_switch_step = None
-            if switch_strategy == "Manual switch step":
-                temp_switch_step = switch_step if switch_step != -1 else lightning_steps // 2
-            elif switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
-                temp_switch_step = 1
-            else:
-                temp_switch_step = math.ceil(lightning_steps / 2)
+        # Validate special modes (lightning-only, skip configurations)
+        self._validate_special_modes(lightning_start, lightning_steps, base_steps, switch_strategy, switch_step)
 
-            if temp_switch_step == 0 and base_steps > 0:
-                raise ValueError("When skipping both Stage 1 and Stage 2, base_steps must be -1 or 0")
+        # Patch all models with sigma shift (non-mutating)
+        patched_base_high, patched_lightning_high, patched_lightning_low = self._patch_models_for_sampling(
+            base_high, lightning_high, lightning_low, sigma_shift
+        )
 
-        # Patch models (non-mutating)
-        patcher = self._get_model_patcher()
-        shift_value = self._canonicalize_shift(sigma_shift)
-        patched_base_high = patcher.patch(base_high, shift_value)[0]
-        patched_lightning_high = patcher.patch(lightning_high, shift_value)[0]
-        patched_lightning_low = patcher.patch(lightning_low, shift_value)[0]
-
-        # Determine switch step based on strategy
-        if switch_strategy == "Manual switch step":
-            if switch_step == -1:
-                switch_step_calculated = lightning_steps // 2
-                effective_strategy = "50% of steps (auto)"
-            else:
-                switch_step_calculated = switch_step
-                effective_strategy = "Manual switch step"
-        elif switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
-            if switch_strategy == "T2V boundary":
-                boundary_value = _BOUNDARY_T2V
-            elif switch_strategy == "I2V boundary":
-                boundary_value = _BOUNDARY_I2V
-            else:
-                boundary_value = switch_boundary
-
-            sampling = patched_lightning_high.get_model_object("model_sampling")
-            switch_step_calculated = self._compute_boundary_switching_step(
-                sampling, scheduler, lightning_steps, boundary_value
-            )
-            effective_strategy = switch_strategy
-        else:
-            switch_step_calculated = math.ceil(lightning_steps / 2)
-            effective_strategy = switch_strategy
-
-        switch_step_final = int(switch_step_calculated)
+        # Calculate switch step and strategy information
+        switch_step_final, _, model_switching_info = self._calculate_switch_step_and_strategy(
+            switch_strategy, switch_step, switch_boundary, lightning_steps, patched_lightning_high, scheduler
+        )
 
         # Stage execution logic flags
         skip_stage1 = (lightning_start == 0)
@@ -774,36 +1021,22 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         stage2_add_noise = skip_stage1
         stage3_add_noise = False
 
+        # Validate switch step against lightning_start
         if lightning_start > switch_step_final:
             raise ValueError("lightning_start cannot be greater than switch_step.")
-        else:
-            if switch_strategy in ["T2V boundary", "I2V boundary", "Manual boundary"]:
-                boundary_value = (
-                    _BOUNDARY_T2V
-                    if switch_strategy == "T2V boundary"
-                    else _BOUNDARY_I2V
-                    if switch_strategy == "I2V boundary"
-                    else switch_boundary
-                )
-                model_switching_info = f"Model switching: {effective_strategy} (boundary = {boundary_value}) → switch at step {switch_step_final} of {lightning_steps}"
-                logger.info(model_switching_info)
-            else:
-                model_switching_info = f"Model switching: {effective_strategy} → switch at step {switch_step_final} of {lightning_steps}"
-                logger.info(model_switching_info)
 
-            if lightning_start == switch_step_final:
-                skip_stage2 = True
-                stage2_skip_reason = "lightning_start equals switch point"
+        # Log the model switching strategy
+        logger.info(model_switching_info)
+
+        # Check if Stage 2 should be skipped
+        if lightning_start == switch_step_final:
+            skip_stage2 = True
+            stage2_skip_reason = "lightning_start equals switch point"
 
         stage3_add_noise = skip_stage1 and skip_stage2
 
         # Stage 1: Base denoising
         if skip_stage1:
-            if base_steps > 0:
-                raise ValueError(
-                    "Set base_steps=0 or base_steps=-1 for Lightning-only mode, "
-                    "or increase lightning_start to use base denoising."
-                )
             logger.info("Lightning-only mode: base_steps not applicable (Stage 1 skipped)")
             bare_logger.info("")  # separator before skipped stage log
             logger.info("Stage 1: Skipped (Lightning-only mode)")
@@ -874,9 +1107,9 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             positive=positive,
             negative=negative,
             latent=stage2_output,
-            seed=seed + 1,
+            seed=seed + STAGE3_SEED_OFFSET,
             steps=lightning_steps,
-            cfg=1.0,
+            cfg=lightning_cfg,  # Use lightning_cfg parameter for advanced node flexibility
             sampler_name=sampler_name,
             scheduler=scheduler,
             start_at_step=stage3_start,
@@ -902,14 +1135,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 model_switching_info=model_switching_info
             )
 
-            # Create a minimal 8x8 latent to speed up downstream VAE processing
-            original_samples = latent_image.get("samples")
-            if original_samples is not None:
-                device = original_samples.device
-                dtype = original_samples.dtype
-                channels = original_samples.shape[1]
-                small_latent_tensor = torch.zeros((1, channels, 1, 8, 8), device=device, dtype=dtype)
-                return ({"samples": small_latent_tensor},)
+            # Return minimal latent to speed up downstream VAE processing
+            return self._create_dry_run_minimal_latent(latent_image)
 
         # Always return tuple as expected by RETURN_TYPES
         return stage3_result
@@ -1003,7 +1230,7 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
             base_cfg=base_cfg,
             lightning_start=lightning_start,
             lightning_steps=lightning_steps,
-            lightning_cfg=1.0,
+            lightning_cfg=SIMPLE_NODE_LIGHTNING_CFG,
             sampler_name=sampler_name,
             scheduler=scheduler,
             switch_strategy=switch_strategy,

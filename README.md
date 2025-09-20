@@ -98,7 +98,6 @@ Main triple-stage sampler with streamlined interface:
 
 - **Streamlined Interface**: Essential parameters with smart defaults
 - **Auto-computed base_steps**: Uses quality threshold-based calculation for optimal base model utilization
-- **Lightning-start Aware**: Auto-calculation accounts for when Lightning processing begins
 - **Configurable lightning_start**: Defaults to 1 but can be adjusted for different workflows
 - **Same Functionality**: Uses the same algorithm as the Advanced node
 
@@ -111,8 +110,7 @@ Variant with complete configurability:
 - **Dynamic UI**: Parameters show/hide based on selected strategy for cleaner interface
 - **Auto-calculation Options**: Both base_steps and switch_step can be auto-computed (-1) or manually set
 - **Dry Run Mode**: Test configurations without actual sampling execution
-- **Lightning-start Aware**: Auto-calculation accounts for when Lightning processing begins
-- **Full Control**: Complete flexibility and testing capabilities
+- **Complete Flexibility**: Full control and testing capabilities
 
 ## Example Workflows
 
@@ -149,8 +147,14 @@ Parameters unique to TripleKSampler compared to native KSampler:
 
 **base_steps** (Advanced node only)
 - Number of steps for Stage 1 (base high-noise model)
-- Use -1 for auto-calculation based on quality threshold
-- Auto-calculation ensures optimal transition between stages
+- Use -1 for auto-calculation (see [Auto-Calculation Methods](#auto-calculation-methods))
+
+**base_quality_threshold** (Advanced node only)
+- Minimum total steps constraint for base_steps auto-calculation
+- Only visible when base_steps is set to -1 (auto-calculation mode)
+- Higher values = more sampling resolution, lower values = faster computation
+- Can override config.toml default (20) per-node for fine-tuning
+- Ensures sufficient base model sampling quality
 
 **lightning_start**
 - Starting step within the lightning schedule
@@ -168,32 +172,33 @@ Parameters unique to TripleKSampler compared to native KSampler:
 - Separate from lightning_cfg for per-stage control
 
 **lightning_cfg** (Advanced node only)
-- CFG scale for Stage 2 and Stage 3
-- In the regular node, automatically set to 1.0
-- Independent control from base_cfg
+- CFG scale for Stage 2 and Stage 3 (Lightning models)
+- Allows independent CFG control for Lightning stages
+- Simple node automatically uses 1.0 for optimal Lightning LoRA performance
+- Advanced node allows custom values for experimentation
 
 ### Switching Strategies
 
-**switching_strategy**
-- Controls transition between lightning high and low models
-- Options: "50% of steps", "Manual switch step", "T2V boundary", "I2V boundary", "Manual boundary"
-- Manual modes ("Manual switch step", "Manual boundary") available in Advanced node only
+**switch_strategy**
+- Controls transition point between Lightning high and low models
+- Available strategies: "50% of steps", "T2V boundary", "I2V boundary", "Manual switch step", "Manual boundary"
+- See [Model Switching Strategies](#model-switching-strategies) section for detailed explanations
 
 **switch_step** (Advanced node only)
 - Manual step number for switching (when using "Manual switch step")
-- Use -1 for auto-calculation at 50% of lightning steps
+- Use -1 for auto-calculation (see [Auto-Calculation Methods](#auto-calculation-methods))
 
 **switch_boundary** (Advanced node only)
 - Sigma boundary value for switching (when using "Manual boundary")
 - Defaults to 0.875
-- T2V boundary strategy uses 0.875, I2V boundary strategy uses 0.900 (can be changed in config.toml)
+- See [Configuration](#configuration) section for T2V/I2V boundary defaults
 
 ### Parameter Guidelines
 
 - **sigma_shift**: Adjust based on your specific models and use case
 - **base_cfg**: Experiment with different values based on your prompt
 - **lightning_steps**: Balance between quality and speed for your needs
-- **boundary**: 0.875 for text-to-video, 0.900 for image-to-video
+- **boundary**: Configure via config.toml (see [Configuration](#configuration) section)
 
 ## Configuration
 
@@ -236,8 +241,6 @@ level = "INFO"
 - **`default_i2v`**: Default sigma boundary for image-to-video models (0.900)
 - **`level`**: Logging level (`"DEBUG"` shows detailed calculations, `"INFO"` shows essential workflow info)
 
-The `config.toml` file is automatically created on first run and is gitignored to prevent conflicts during updates.
-
 ## Model Switching Strategies
 
 The Advanced node offers 5 switching strategies with dynamic UI that shows only relevant parameters:
@@ -249,10 +252,10 @@ Simple approach that switches at 50% of lightning steps (rounded up). Reliable a
 Allows precise control over the switching step. Shows switch_step parameter for manual configuration.
 
 ### 3. "T2V boundary" (Auto-Boundary)
-Configured for text-to-video models, automatically uses boundary value of 0.875 for sigma-based switching.
+Configured for text-to-video models, automatically uses boundary value from config.toml for sigma-based switching.
 
 ### 4. "I2V boundary" (Auto-Boundary)
-Configured for image-to-video models, automatically uses boundary value of 0.900 for sigma-based switching.
+Configured for image-to-video models, automatically uses boundary value from config.toml for sigma-based switching.
 
 ### 5. "Manual boundary"
 Full control over sigma boundary value. Shows switch_boundary parameter for manual configuration.
