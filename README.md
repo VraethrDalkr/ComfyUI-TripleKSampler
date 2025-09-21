@@ -109,7 +109,7 @@ Variant with complete configurability:
 - **5 Switching Strategies**: Manual step, manual boundary, T2V boundary, I2V boundary, 50% midpoint
 - **Dynamic UI**: Parameters show/hide based on selected strategy for cleaner interface
 - **Auto-calculation Options**: Both base_steps and switch_step can be auto-computed (-1) or manually set
-- **Dry Run Mode**: Test configurations without actual sampling execution
+- **Dry Run Button**: Test configurations without actual sampling execution
 - **Complete Flexibility**: Full control and testing capabilities
 
 ## Example Workflows
@@ -134,7 +134,7 @@ Example workflows are included in the `example_workflows/` directory: `t2v_workf
 
 4. Choose model switching strategy (see Model Switching Strategies section for details)
 
-5. Optional: Enable **Dry Run** mode (Advanced node) to test configurations without sampling
+5. Optional: Use **Run Dry Run** button (Advanced node) to test configurations without sampling
 
 ## Parameter Reference
 
@@ -327,13 +327,13 @@ The Advanced node supports several special sampling modes by configuring specifi
 
 ## Additional Features
 
-### Dry Run Mode (Advanced Node Only)
-The Advanced node includes a **Dry Run** boolean parameter for testing configurations:
+### Dry Run Button (Advanced Node Only)
+The Advanced node includes a **Run Dry Run** button for testing configurations:
 
 - **Purpose**: Test parameter combinations without expensive sampling operations
 - **Validation**: Performs complete parameter validation and logging
 - **Performance**: Instant feedback for workflow testing and debugging
-- **Usage**: Enable the "dry_run" checkbox in the Advanced node interface
+- **Usage**: Click the "Run Dry Run" button in the Advanced node interface
 
 
 ## Logging

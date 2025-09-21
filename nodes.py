@@ -21,7 +21,19 @@ import comfy.samplers
 import nodes
 import torch
 from comfy_extras.nodes_model_advanced import ModelSamplingSD3
-from server import PromptServer
+
+# Conditional server import for testing compatibility
+try:
+    # Check if we're in testing mode
+    import os
+    if os.environ.get('COMFYUI_TESTING', '0') == '1':
+        # Skip server import in testing mode
+        PromptServer = None
+    else:
+        from server import PromptServer
+except ImportError:
+    # Fallback if server import fails
+    PromptServer = None
 
 # Configuration default values
 _DEFAULT_BASE_QUALITY_THRESHOLD = 20
@@ -420,7 +432,7 @@ class TripleKSamplerWan22Base:
 
         # Send toast notification via ComfyUI message system (if available)
         try:
-            if hasattr(PromptServer, 'instance') and PromptServer.instance:
+            if PromptServer and hasattr(PromptServer, 'instance') and PromptServer.instance:
                 PromptServer.instance.send_sync("triple_ksampler_dry_run", {
                     "severity": "info",
                     "summary": "TripleKSampler: Dry Run Complete",
@@ -645,7 +657,7 @@ class TripleKSamplerWan22Base:
                 denoise=1.0,
             )
         except Exception as exc:
-            raise RuntimeError(f"{stage_name}: sampling failed.") from exc
+            raise RuntimeError(f"{stage_name}: sampling failed - {type(exc).__name__}: {str(exc)}") from exc
 
         return result
 
@@ -989,12 +1001,17 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                             overlap_pct,
                         )
                         # Send toast notification via ComfyUI message system
-                        PromptServer.instance.send_sync("triple_ksampler_overlap", {
-                            "severity": "warn",
-                            "summary": "TripleKSampler: Stage overlap",
-                            "detail": f"Stage 1 and Stage 2 overlap by {overlap_pct:.1f}%. Consider base_steps=-1 or adjust lightning parameters.",
-                            "life": TOAST_LIFE_OVERLAP,
-                        })
+                        try:
+                            if PromptServer and hasattr(PromptServer, 'instance') and PromptServer.instance:
+                                PromptServer.instance.send_sync("triple_ksampler_overlap", {
+                                    "severity": "warn",
+                                    "summary": "TripleKSampler: Stage overlap",
+                                    "detail": f"Stage 1 and Stage 2 overlap by {overlap_pct:.1f}%. Consider base_steps=-1 or adjust lightning parameters.",
+                                    "life": TOAST_LIFE_OVERLAP,
+                                })
+                        except Exception:
+                            # Silently fail if PromptServer is not available
+                            pass
 
         # Validate resolved parameters after auto-calculation
         self._validate_resolved_parameters(lightning_start, base_steps)
