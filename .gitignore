@@ -78,3 +78,9 @@ pytest.ini
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Security and pre-commit
+.pre-commit-config.yaml
+.secrets.baseline
+bandit-report.json
+.pre-commit-config.yaml.bak
