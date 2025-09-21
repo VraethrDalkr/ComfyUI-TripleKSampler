@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.8.1] - 2025-09-21
+### Added
+- Comprehensive inline code documentation for better understanding
+- Enhanced error messages with detailed exception information for easier debugging
+- Improved testing compatibility for more stable operation across environments
+
+### Changed
+- README documentation significantly improved with clearer parameter explanations
+- Better organization of parameter reference and usage instructions
+- Enhanced auto-calculation method documentation for user clarity
+
+### Fixed
+- Conditional server imports to prevent crashes in testing environments
+- Improved error handling with exception type information for better troubleshooting
+
 ## [0.8.0] - 2025-09-19
 ### Added
 - `base_quality_threshold` parameter exposed in Advanced node UI for runtime configuration
