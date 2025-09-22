@@ -51,6 +51,8 @@ Professional triple-stage sampling nodes for Wan2.2 split models with Lightning 
 
 Example workflows are included in the `example_workflows/` directory.
 
+**Custom LoRAs**: The `t2v_custom_lora_workflow.json` demonstrates layering custom LoRAs with Lightning LoRAs. For I2V workflows, apply the same pattern to your I2V models.
+
 ## Support
 
 - **Issues** - [GitHub Issues](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/issues)
