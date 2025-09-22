@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.8.3] - 2025-09-22
+### Changed
+- Cleaned up CHANGELOG.md to remove internal development references for public release readiness
+- Streamlined .gitignore to remove redundant entries and development artifacts
+
 ## [0.8.2] - 2025-09-22
 ### Added
 - Model download guidance notes in all 3 example workflows
@@ -91,15 +96,15 @@ All notable changes to this project are documented in this file.
 
 ## [0.7.8] - 2025-09-17
 ### Fixed
-- Complete GitHub Actions workflow setup and testing
+- ComfyUI Registry publishing compatibility
 
 ## [0.7.7] - 2025-09-17
 ### Fixed
-- GitHub Actions publishing workflow testing
+- Registry publishing workflow compatibility
 
 ## [0.7.6] - 2025-09-17
 ### Added
-- GitHub Actions workflow for automated ComfyUI Registry publishing
+- Automated ComfyUI Registry publishing support
 
 ## [0.7.5] - 2025-09-17
 ### Fixed
@@ -108,8 +113,6 @@ All notable changes to this project are documented in this file.
 ## [0.7.4] - 2024-09-17
 ### Fixed
 - Update CHANGELOG.md for v0.7.3 that was missed in previous release
-- Enhanced CLAUDE.md with comprehensive version handling instructions
-- Verified version references are limited to pyproject.toml, __init__.py, and CHANGELOG.md
 
 ## [0.7.3] - 2024-09-17
 ### Fixed
@@ -125,7 +128,7 @@ All notable changes to this project are documented in this file.
 ### Added
 - Minimal 8x8 latent optimization for dry run mode to speed up downstream VAE processing
 - ComfyUI Registry configuration in pyproject.toml for ComfyUI-Manager discovery
-- CHANGELOG.md for better version tracking separated from CLAUDE.md
+- CHANGELOG.md for better version tracking
 
 ## [0.7.0] - 2024-09-17
 ### Added
