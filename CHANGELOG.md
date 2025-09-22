@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.8.2] - 2025-09-22
+### Added
+- Model download guidance notes in all 3 example workflows
+- Custom LoRA workflow example (t2v_custom_lora_workflow.json) demonstrating layered LoRA usage
+- Comprehensive download links to official Comfy-Org repackaged models
+- Custom LoRA workflow guidance in README for both T2V and I2V usage
+
+### Changed
+- README simplified from 385 to 66 lines with GitHub wiki links for detailed documentation
+- Wiki content organization and structure improvements
+- Error message formatting for cleaner display (removes extra colon from empty exceptions)
+- Parameter documentation reordered to match UI layout
+- Lightning parameter descriptions clarified for lightning stages specifically
+
+### Fixed
+- Wiki duplicate titles removed to prevent GitHub auto-title conflicts
+- Parameter Reference updated with proper file placement paths
+- Troubleshooting section updated with quantized model guidance and sigma_shift range
+- Quality Threshold description clarified for Advanced vs Simple node usage
+
+### Documentation
+- Complete wiki restructure with 8 organized pages
+- Model download instructions with proper file placement
+- Lightning LoRA sources and custom LoRA integration examples
+- Improved troubleshooting with GGUF quantization guidance
+
 ## [0.8.1] - 2025-09-21
 ### Added
 - Comprehensive inline code documentation for better understanding

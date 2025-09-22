@@ -84,3 +84,7 @@ htmlcov/
 .secrets.baseline
 bandit-report.json
 .pre-commit-config.yaml.bak
+
+# Wiki workspace (local clone for maintenance)
+wiki-workspace/
+WIKI-MANAGEMENT-SETUP.md
