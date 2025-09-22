@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.8.3] - 2025-09-22
+### Changed
+- Cleaned up CHANGELOG.md to remove internal development references for public release readiness
+- Streamlined .gitignore to remove redundant entries and development artifacts
+
 ## [0.8.2] - 2025-09-22
 ### Added
 - Model download guidance notes in all 3 example workflows
