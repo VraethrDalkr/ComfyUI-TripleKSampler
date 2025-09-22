@@ -39,13 +39,13 @@ Professional triple-stage sampling nodes for Wan2.2 split models with Lightning 
 
 ## Documentation
 
-- **[📖 Complete Documentation](../../wiki)** - Comprehensive guides and reference
-- **[⚙️ Installation Guide](../../wiki/Installation-Guide)** - Detailed setup instructions
-- **[📋 Parameter Reference](../../wiki/Parameter-Reference)** - Full parameter documentation
-- **[🔧 Configuration Guide](../../wiki/Configuration-Guide)** - TOML configuration setup
-- **[🎯 Model Switching Strategies](../../wiki/Model-Switching-Strategies)** - Strategy explanations
-- **[🚀 Advanced Features](../../wiki/Advanced-Features)** - Edge cases and special modes
-- **[🛠️ Troubleshooting](../../wiki/Troubleshooting)** - Common issues and solutions
+- **[📖 Complete Documentation](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/wiki)** - Comprehensive guides and reference
+- **[⚙️ Installation Guide](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/wiki/Installation-Guide)** - Detailed setup instructions
+- **[📋 Parameter Reference](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/wiki/Parameter-Reference)** - Full parameter documentation
+- **[🔧 Configuration Guide](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/wiki/Configuration-Guide)** - TOML configuration setup
+- **[🎯 Model Switching Strategies](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/wiki/Model-Switching-Strategies)** - Strategy explanations
+- **[🚀 Advanced Features](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/wiki/Advanced-Features)** - Edge cases and special modes
+- **[🛠️ Troubleshooting](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/wiki/Troubleshooting)** - Common issues and solutions
 
 ## Example Workflows
 
@@ -54,7 +54,7 @@ Example workflows are included in the `example_workflows/` directory.
 ## Support
 
 - **Issues** - [GitHub Issues](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/issues)
-- **Documentation** - [Project Wiki](../../wiki)
+- **Documentation** - [Project Wiki](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/wiki)
 - **Updates** - [Changelog](CHANGELOG.md)
 
 ## License

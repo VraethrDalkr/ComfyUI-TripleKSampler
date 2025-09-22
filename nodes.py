@@ -657,7 +657,11 @@ class TripleKSamplerWan22Base:
                 denoise=1.0,
             )
         except Exception as exc:
-            raise RuntimeError(f"{stage_name}: sampling failed - {type(exc).__name__}: {str(exc)}") from exc
+            exc_msg = str(exc).strip()
+            if exc_msg:
+                raise RuntimeError(f"{stage_name}: sampling failed - {type(exc).__name__}: {exc_msg}") from exc
+            else:
+                raise RuntimeError(f"{stage_name}: sampling failed - {type(exc).__name__}") from exc
 
         return result
 
