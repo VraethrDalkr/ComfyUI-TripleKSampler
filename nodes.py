@@ -17,6 +17,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import comfy.model_management
 import comfy.samplers
 import nodes
 import torch
@@ -656,6 +657,9 @@ class TripleKSamplerWan22Base:
                 return_with_leftover_noise=return_noise_mode,
                 denoise=1.0,
             )
+        except comfy.model_management.InterruptProcessingException:
+            # User cancelled - re-raise without wrapping to allow graceful cancellation
+            raise
         except Exception as exc:
             exc_msg = str(exc).strip()
             if exc_msg:

@@ -5,6 +5,10 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.8.5] - 2025-10-14
+### Fixed
+- Graceful handling of user cancellations: InterruptProcessingException now propagates correctly without wrapping, preventing misleading error dialogs when users cancel sampling operations
+
 ## [0.8.4] - 2025-10-14
 ### Added
 - Switch Strategy utility nodes for external strategy control (Simple and Advanced variants)
