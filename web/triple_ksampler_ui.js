@@ -114,13 +114,6 @@ app.registerExtension({
             if (node.graph && node.graph.canvas) {
                 node.graph.canvas.setDirty(true, true);
             }
-
-            setTimeout(() => {
-                if (node.onResize) {
-                    node.onResize(node.size);
-                }
-                node.setDirtyCanvas(true, true);
-            }, 10);
         };
 
         // Set up callback for strategy widget changes
@@ -195,13 +188,6 @@ app.registerExtension({
                 if (node.graph && node.graph.canvas) {
                     node.graph.canvas.setDirty(true, true);
                 }
-
-                setTimeout(() => {
-                    if (node.onResize) {
-                        node.onResize(node.size);
-                    }
-                    node.setDirtyCanvas(true, true);
-                }, 10);
             };
 
             // Set up callback for base_steps changes

@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.8.7] - 2025-10-14
+### Fixed
+- Node resize loop during image generation causing window shaking (issue #5)
+- Removed aggressive `onResize()` calls from widget visibility update functions
+
 ## [0.8.6] - 2025-10-14
 ### Changed
 - Dry run mode now interrupts workflow execution instead of returning minimal latent to prevent downstream nodes (VAE Decode) from processing
