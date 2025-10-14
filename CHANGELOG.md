@@ -2,8 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
-- Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
+## [0.8.6] - 2025-10-14
+### Changed
+- Dry run mode now interrupts workflow execution instead of returning minimal latent to prevent downstream nodes (VAE Decode) from processing
+- Enhanced dry run completion message for clarity: "[DRY RUN] Complete - interrupting workflow execution (expected behavior)"
+- JavaScript UI now listens for both "executed" and "execution_interrupted" events to properly reset dry_run widget state
+
+### Removed
+- Unused dry run context menu implementation (`run_dry_run()` method)
+- Deprecated `_create_dry_run_minimal_latent()` method and MIN_LATENT constants (no longer needed)
+- Unnecessary try/finally wrapper for dry run flag management (simplified code flow)
+
+### Fixed
+- Dry run widget state persistence issue where subsequent workflow executions would re-run dry run instead of normal sampling
+- Tooltip updated to reflect actual behavior: "test stage calculations without actual sampling"
 
 ## [0.8.5] - 2025-10-14
 ### Fixed

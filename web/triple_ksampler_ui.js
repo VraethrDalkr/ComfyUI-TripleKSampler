@@ -235,7 +235,7 @@ app.registerExtension({
                 }
                 // Queue execution immediately
                 app.queuePrompt(0, 1);
-                // Note: Auto-reset is handled by the "executed" event listener in setup()
+                // Note: Auto-reset is handled by "executed" and "execution_interrupted" event listeners in setup()
             }, {
                 serialize: false
             });
@@ -322,6 +322,28 @@ app.registerExtension({
             } catch (e) {
                 console.error(
                     "TripleKSampler extension failed to handle execution event:",
+                    e
+                );
+            }
+        });
+
+        // Listen for execution interruption to reset dry_run parameters
+        api.addEventListener("execution_interrupted", (ev) => {
+            try {
+                // Reset dry_run to false for all TripleKSampler nodes after interruption
+                if (app.graph && app.graph._nodes) {
+                    for (const node of app.graph._nodes) {
+                        if (node.comfyClass === "TripleKSamplerWan22LightningAdvanced") {
+                            const dryRunWidget = findWidgetByName(node, "dry_run");
+                            if (dryRunWidget && dryRunWidget.value === true) {
+                                dryRunWidget.value = false;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error(
+                    "TripleKSampler extension failed to handle interruption event:",
                     e
                 );
             }

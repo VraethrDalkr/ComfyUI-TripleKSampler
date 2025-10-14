@@ -45,8 +45,6 @@ _DEFAULT_LOG_LEVEL = "INFO"
 # Algorithm constants
 STAGE3_SEED_OFFSET = 1  # Ensure Stage 3 uses different noise pattern
 SIMPLE_NODE_LIGHTNING_CFG = 1.0  # Fixed CFG value for Simple node's lightning stages
-MIN_LATENT_HEIGHT = 1   # Minimal latent height for dry run
-MIN_LATENT_WIDTH = 8    # Minimal latent width for dry run (8x8 for VAE compatibility)
 TOAST_LIFE_OVERLAP = 8000    # Toast notification duration for overlap warnings (ms)
 TOAST_LIFE_DRY_RUN = 12000   # Toast notification duration for dry run results (ms)
 SEARCH_LIMIT_MULTIPLIER = 1  # Additional steps to search beyond threshold for alignment
@@ -763,36 +761,6 @@ class TripleKSamplerWan22Base:
 
         return switch_step_final, effective_strategy, model_switching_info
 
-    def _create_dry_run_minimal_latent(self, original_latent: Dict[str, torch.Tensor]) -> Tuple[Dict[str, torch.Tensor], ...]:
-        """Create minimal latent tensor for dry run mode.
-
-        Generates a small latent tensor to speed up downstream VAE processing
-        during dry run testing. Maintains device and dtype compatibility with
-        the original latent.
-
-        Args:
-            original_latent: Original latent dict containing 'samples' tensor
-
-        Returns:
-            Tuple containing dict with minimal latent tensor
-        """
-        original_samples = original_latent.get("samples")
-        if original_samples is not None:
-            device = original_samples.device
-            dtype = original_samples.dtype
-            channels = original_samples.shape[1]
-            # Create minimal 8x8 latent compatible with VAE processing
-            small_latent_tensor = torch.zeros(
-                (1, channels, MIN_LATENT_HEIGHT, MIN_LATENT_WIDTH, MIN_LATENT_WIDTH),
-                device=device,
-                dtype=dtype
-            )
-            return ({"samples": small_latent_tensor},)
-
-        # Fallback if no samples found
-        return (original_latent,)
-
-
 class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
     """Advanced triple-stage node with full parameter control."""
 
@@ -896,7 +864,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "Enable dry run mode to bypass sampling and return a tiny latent for testing.",
+                        "tooltip": "Enable dry run mode to test stage calculations without actual sampling.",
                     },
                 ),
             },
@@ -931,13 +899,6 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         dry_run: bool = False,
     ) -> Tuple[Dict[str, torch.Tensor], ...]:
         """Perform the triple-stage sampling run and return final latent tuple."""
-        # Check if dry run mode was requested via context menu or parameter
-        context_dry_run = getattr(self, '_dry_run_requested', False)
-        dry_run = dry_run or context_dry_run
-        # Reset the context menu flag after checking
-        if hasattr(self, '_dry_run_requested'):
-            delattr(self, '_dry_run_requested')
-
         if str(_LOG_LEVEL).upper() == "DEBUG":
             bare_logger.info("")
         logger.debug("=== TripleKSampler Node - Input Parameters ===")
@@ -1148,9 +1109,6 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
 
         bare_logger.info("")  # final separator after all sampling completes
         if dry_run:
-            logger.info("[DRY RUN] Complete - calculations performed, no sampling executed")
-            bare_logger.info("")
-
             # Send toast notification with dry run summary
             self._send_dry_run_notification(
                 stage1_info=stage1_info,
@@ -1160,8 +1118,10 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 model_switching_info=model_switching_info
             )
 
-            # Return minimal latent to speed up downstream VAE processing
-            return self._create_dry_run_minimal_latent(latent_image)
+            logger.info("[DRY RUN] Complete - interrupting workflow execution (expected behavior)")
+            bare_logger.info("")
+
+            raise comfy.model_management.InterruptProcessingException()
 
         # Always return tuple as expected by RETURN_TYPES
         return stage3_result
@@ -1360,12 +1320,6 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
             base_quality_threshold=_DEFAULT_BASE_QUALITY_THRESHOLD,
             dry_run=dry_run,
         )
-
-    def run_dry_run(self):
-        """Method to be called from context menu to enable dry run mode."""
-        self._dry_run_requested = True
-        return ("Dry run mode enabled for next execution",)
-
 
 # Node registration mapping (ComfyUI expects these names)
 NODE_CLASS_MAPPINGS = {
