@@ -72,8 +72,6 @@ stubs/
 *.pyi
 
 # Testing
-tests/
-pytest.ini
 .pytest_cache/
 .coverage
 htmlcov/
