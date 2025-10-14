@@ -1164,9 +1164,9 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
 
 
 class SwitchStrategySimple:
-    """Utility node for selecting switch strategies for the simple TripleKSampler node.
+    """Utility node for selecting switch strategies for TripleKSampler (Simple).
 
-    Outputs a strategy value compatible with TripleKSampler (simple node).
+    Outputs a strategy value compatible with TripleKSampler (Simple).
     Supports the 3 strategies available in the simple node.
     """
 
@@ -1194,7 +1194,7 @@ class SwitchStrategySimple:
     FUNCTION = "select_strategy"
     CATEGORY = "TripleKSampler/utilities"
     DESCRIPTION = (
-        "Strategy selector for TripleKSampler (simple node). "
+        "Strategy selector for TripleKSampler (Simple). "
         "Outputs one of 3 available strategies: 50% of steps, T2V boundary, or I2V boundary."
     )
 
@@ -1211,9 +1211,9 @@ class SwitchStrategySimple:
 
 
 class SwitchStrategyAdvanced:
-    """Utility node for selecting switch strategies for the advanced TripleKSampler node.
+    """Utility node for selecting switch strategies for TripleKSampler (Advanced).
 
-    Outputs a strategy value compatible with TripleKSampler Advanced.
+    Outputs a strategy value compatible with TripleKSampler (Advanced).
     Supports all 5 strategies including manual control options.
     """
 
@@ -1243,7 +1243,7 @@ class SwitchStrategyAdvanced:
     FUNCTION = "select_strategy"
     CATEGORY = "TripleKSampler/utilities"
     DESCRIPTION = (
-        "Strategy selector for TripleKSampler Advanced. "
+        "Strategy selector for TripleKSampler (Advanced). "
         "Outputs one of 5 available strategies including manual switch step and manual boundary control."
     )
 
@@ -1372,8 +1372,8 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "TripleKSamplerWan22Lightning": "TripleKSampler (Wan2.2-Lightning)",
-    "TripleKSamplerWan22LightningAdvanced": "TripleKSampler Advanced (Wan2.2-Lightning)",
+    "TripleKSamplerWan22Lightning": "TripleKSampler (Simple)",
+    "TripleKSamplerWan22LightningAdvanced": "TripleKSampler (Advanced)",
     "SwitchStrategySimple": "Switch Strategy (Simple)",
     "SwitchStrategyAdvanced": "Switch Strategy (Advanced)",
 }
