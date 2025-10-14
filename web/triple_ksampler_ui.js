@@ -44,32 +44,65 @@ app.registerExtension({
         const strategyWidget = findWidgetByName(node, "switch_strategy");
         if (!strategyWidget) return;
 
+        // Function to get the current strategy value (from widget or connected node)
+        const getCurrentStrategy = () => {
+            // Find the switch_strategy input
+            const strategyInput = node.inputs?.find(i => i.name === "switch_strategy");
+
+            if (strategyInput && strategyInput.link != null) {
+                // Input is connected - try to read value from connected node
+                const link = node.graph.links[strategyInput.link];
+                if (link) {
+                    const originNode = node.graph.getNodeById(link.origin_id);
+                    if (originNode) {
+                        // Try to get the widget value from the connected node
+                        const originWidget = findWidgetByName(originNode, "switch_strategy");
+                        if (originWidget && originWidget.value) {
+                            return originWidget.value;
+                        }
+                    }
+                }
+                // If we can't read the connected value, return null to indicate connection exists
+                return null;
+            }
+
+            // No connection - use widget value
+            return strategyWidget.value;
+        };
+
         // Function to update widget visibility
         const updateWidgetVisibility = (strategy) => {
             let showSwitchStep = false;
             let showSwitchBoundary = false;
 
-            switch (strategy) {
-                case "50% of steps":
-                    showSwitchStep = false;
-                    showSwitchBoundary = false;
-                    break;
-                case "Manual switch step":
-                    showSwitchStep = true;
-                    showSwitchBoundary = false;
-                    break;
-                case "T2V boundary":
-                case "I2V boundary":
-                    showSwitchStep = false;
-                    showSwitchBoundary = false;
-                    break;
-                case "Manual boundary":
-                    showSwitchStep = false;
-                    showSwitchBoundary = true;
-                    break;
-                default:
-                    showSwitchStep = true;
-                    showSwitchBoundary = true;
+            // If strategy is null, it means connected but we can't read the value
+            // In this case, show both optional widgets to be safe
+            if (strategy === null) {
+                showSwitchStep = true;
+                showSwitchBoundary = true;
+            } else {
+                switch (strategy) {
+                    case "50% of steps":
+                        showSwitchStep = false;
+                        showSwitchBoundary = false;
+                        break;
+                    case "Manual switch step":
+                        showSwitchStep = true;
+                        showSwitchBoundary = false;
+                        break;
+                    case "T2V boundary":
+                    case "I2V boundary":
+                        showSwitchStep = false;
+                        showSwitchBoundary = false;
+                        break;
+                    case "Manual boundary":
+                        showSwitchStep = false;
+                        showSwitchBoundary = true;
+                        break;
+                    default:
+                        showSwitchStep = true;
+                        showSwitchBoundary = true;
+                }
             }
 
             // Apply visibility changes using unified CSS approach
@@ -90,7 +123,7 @@ app.registerExtension({
             }, 10);
         };
 
-        // Set up callback for strategy changes
+        // Set up callback for strategy widget changes
         const originalCallback = strategyWidget.callback;
         strategyWidget.callback = function (value) {
             updateWidgetVisibility(value);
@@ -99,9 +132,53 @@ app.registerExtension({
             }
         };
 
+        // Override onConnectionsChange to detect when switch_strategy is connected/disconnected
+        const originalOnConnectionsChange = node.onConnectionsChange;
+        node.onConnectionsChange = function(type, slotIndex, isConnected, link, ioSlot) {
+            // Call original handler if it exists
+            if (originalOnConnectionsChange) {
+                originalOnConnectionsChange.apply(this, arguments);
+            }
+
+            // Check if this is the switch_strategy input (type 1 = input)
+            if (type === 1) {
+                const input = this.inputs[slotIndex];
+                if (input && input.name === "switch_strategy") {
+                    // Connection changed on switch_strategy input
+                    // Use setTimeout to ensure link data is updated
+                    setTimeout(() => {
+                        const currentStrategy = getCurrentStrategy();
+                        updateWidgetVisibility(currentStrategy);
+
+                        // If connected, set up a listener on the connected node's widget
+                        if (isConnected && link) {
+                            const originNode = node.graph.getNodeById(link.origin_id);
+                            if (originNode) {
+                                const originWidget = findWidgetByName(originNode, "switch_strategy");
+                                if (originWidget) {
+                                    // Store original callback
+                                    const origWidgetCallback = originWidget.callback;
+                                    // Override to update visibility when connected node changes
+                                    originWidget.callback = function(value) {
+                                        // Update visibility on the TripleKSampler node
+                                        updateWidgetVisibility(value);
+                                        // Call original callback if it exists
+                                        if (origWidgetCallback) {
+                                            origWidgetCallback.apply(this, arguments);
+                                        }
+                                    };
+                                }
+                            }
+                        }
+                    }, 50);
+                }
+            }
+        };
+
         // Apply initial visibility based on default value
         setTimeout(() => {
-            updateWidgetVisibility(strategyWidget.value);
+            const currentStrategy = getCurrentStrategy();
+            updateWidgetVisibility(currentStrategy);
         }, 100);
 
         // Find base_steps widget for base_quality_threshold visibility

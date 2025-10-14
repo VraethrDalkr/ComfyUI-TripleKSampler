@@ -1163,6 +1163,102 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         return stage3_result
 
 
+class SwitchStrategySimple:
+    """Utility node for selecting switch strategies for the simple TripleKSampler node.
+
+    Outputs a strategy value compatible with TripleKSampler (simple node).
+    Supports the 3 strategies available in the simple node.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls) -> Dict[str, Dict[str, Any]]:
+        """Return INPUT_TYPES for simple strategy selector."""
+        return {
+            "required": {
+                "switch_strategy": (
+                    [
+                        "50% of steps",
+                        "T2V boundary",
+                        "I2V boundary",
+                    ],
+                    {
+                        "default": "50% of steps",
+                        "tooltip": "Strategy for switching between lightning high and low models.",
+                    },
+                ),
+            }
+        }
+
+    RETURN_TYPES = (["50% of steps", "T2V boundary", "I2V boundary"],)
+    RETURN_NAMES = ("switch_strategy",)
+    FUNCTION = "select_strategy"
+    CATEGORY = "TripleKSampler/utilities"
+    DESCRIPTION = (
+        "Strategy selector for TripleKSampler (simple node). "
+        "Outputs one of 3 available strategies: 50% of steps, T2V boundary, or I2V boundary."
+    )
+
+    def select_strategy(self, switch_strategy: str) -> Tuple[str]:
+        """Return the selected strategy as a string tuple.
+
+        Args:
+            switch_strategy: Selected strategy name
+
+        Returns:
+            Tuple containing the strategy string
+        """
+        return (switch_strategy,)
+
+
+class SwitchStrategyAdvanced:
+    """Utility node for selecting switch strategies for the advanced TripleKSampler node.
+
+    Outputs a strategy value compatible with TripleKSampler Advanced.
+    Supports all 5 strategies including manual control options.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls) -> Dict[str, Dict[str, Any]]:
+        """Return INPUT_TYPES for advanced strategy selector."""
+        return {
+            "required": {
+                "switch_strategy": (
+                    [
+                        "50% of steps",
+                        "Manual switch step",
+                        "T2V boundary",
+                        "I2V boundary",
+                        "Manual boundary",
+                    ],
+                    {
+                        "default": "50% of steps",
+                        "tooltip": "Strategy for switching between lightning high and low models.",
+                    },
+                ),
+            }
+        }
+
+    RETURN_TYPES = (["50% of steps", "Manual switch step", "T2V boundary", "I2V boundary", "Manual boundary"],)
+    RETURN_NAMES = ("switch_strategy",)
+    FUNCTION = "select_strategy"
+    CATEGORY = "TripleKSampler/utilities"
+    DESCRIPTION = (
+        "Strategy selector for TripleKSampler Advanced. "
+        "Outputs one of 5 available strategies including manual switch step and manual boundary control."
+    )
+
+    def select_strategy(self, switch_strategy: str) -> Tuple[str]:
+        """Return the selected strategy as a string tuple.
+
+        Args:
+            switch_strategy: Selected strategy name
+
+        Returns:
+            Tuple containing the strategy string
+        """
+        return (switch_strategy,)
+
+
 class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
     """Simplified triple-stage sampler with sensible defaults."""
 
@@ -1271,9 +1367,13 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
 NODE_CLASS_MAPPINGS = {
     "TripleKSamplerWan22Lightning": TripleKSamplerWan22Lightning,
     "TripleKSamplerWan22LightningAdvanced": TripleKSamplerWan22LightningAdvanced,
+    "SwitchStrategySimple": SwitchStrategySimple,
+    "SwitchStrategyAdvanced": SwitchStrategyAdvanced,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "TripleKSamplerWan22Lightning": "TripleKSampler (Wan2.2-Lightning)",
     "TripleKSamplerWan22LightningAdvanced": "TripleKSampler Advanced (Wan2.2-Lightning)",
+    "SwitchStrategySimple": "Switch Strategy (Simple)",
+    "SwitchStrategyAdvanced": "Switch Strategy (Advanced)",
 }

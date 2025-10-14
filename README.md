@@ -25,10 +25,12 @@ Professional triple-stage sampling nodes for Wan2.2 split models with Lightning 
 
 ## Node Types
 
-| Node | Best For | Key Features |
-|------|----------|--------------|
-| **TripleKSampler** | Most users | Smart defaults, auto-calculation, streamlined interface |
-| **TripleKSampler Advanced** | Power users | Full control, 5 switching strategies, dry-run testing |
+| Node | Category | Best For | Key Features |
+|------|----------|----------|--------------|
+| **TripleKSampler** | Sampling | Most users | Smart defaults, auto-calculation, streamlined interface |
+| **TripleKSampler Advanced** | Sampling | Power users | Full control, 5 switching strategies, dry-run testing |
+| **Switch Strategy (Simple)** | Utilities | Simple node users | External strategy for simple node, 3 strategies (50%, T2V, I2V) |
+| **Switch Strategy (Advanced)** | Utilities | Advanced node users | External strategy for advanced node, 5 strategies with manual control |
 
 ## Essential Parameters
 
