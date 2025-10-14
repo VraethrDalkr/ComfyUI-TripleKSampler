@@ -1,6 +1,6 @@
 # ComfyUI-TripleKSampler
 
-Professional triple-stage sampling nodes for Wan2.2 split models with Lightning LoRA integration. Simple to use, powerful results.
+Triple-stage sampling nodes for Wan2.2 split models with Lightning LoRA integration.
 
 ## Features
 
@@ -36,8 +36,8 @@ Professional triple-stage sampling nodes for Wan2.2 split models with Lightning 
 
 - **sigma_shift** - Sigma shift value (default: 5.0)
 - **base_cfg** - CFG for base denoising (default: 3.5)
-- **lightning_steps** - Total lightning steps (default: 8)
 - **lightning_start** - Starting step in lightning schedule (default: 1)
+- **lightning_steps** - Total lightning steps (default: 8)
 
 ## Documentation
 
