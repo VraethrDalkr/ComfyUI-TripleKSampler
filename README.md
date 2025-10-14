@@ -55,6 +55,9 @@ Example workflows are included in the `example_workflows/` directory.
 
 **Custom LoRAs**: The `t2v_custom_lora_workflow.json` demonstrates layering custom LoRAs with Lightning LoRAs. For I2V workflows, apply the same pattern to your I2V models.
 
+**Hybrid Workflow**: The `hybrid_workflow.json` showcases the Switch Strategy utility nodes for external strategy control. Demonstrates using different switching strategies for T2V and I2V branches in a single workflow.
+- **Requires**: [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) custom nodes
+
 ## Support
 
 - **Issues** - [GitHub Issues](https://github.com/VraethrDalkr/ComfyUI-TripleKSampler/issues)

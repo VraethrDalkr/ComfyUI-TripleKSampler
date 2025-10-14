@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 - Future enhancement ideas: additional strategies, better boundary computation, performance optimizations, extended model compatibility
 
+## [0.8.4] - 2025-10-14
+### Added
+- Switch Strategy utility nodes for external strategy control (Simple and Advanced variants)
+- Dynamic UI support for automatic widget visibility when strategy nodes are connected
+- Hybrid workflow example demonstrating T2V/I2V with different strategies
+
+### Changed
+- Display names renamed to "TripleKSampler (Simple)" and "TripleKSampler (Advanced)" for clarity
+- Documentation improvements for clarity and consistency
+
 ## [0.8.3] - 2025-09-22
 ### Changed
 - Cleaned up CHANGELOG.md to remove internal development references for public release readiness
