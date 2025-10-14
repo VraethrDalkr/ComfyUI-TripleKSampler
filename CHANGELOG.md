@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.8.8] - 2025-10-14
+### Added
+- Workflow comparison diagram (assets/workflows_compare.svg) visualizing 4 different sampling approaches
+- "Why Use TripleKSampler?" section in README with embedded comparison diagram
+- Math node comparison workflow documentation (TripleKSampler_vs_MathSetup.json)
+
+### Changed
+- Reorganized Example Workflows section with clearer progression from basic to advanced workflows
+- Enhanced documentation for workflow dependencies and requirements
+
 ## [0.8.7] - 2025-10-14
 ### Fixed
 - Node resize loop during image generation causing window shaking (issue #5)

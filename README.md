@@ -23,6 +23,20 @@ Triple-stage sampling nodes for Wan2.2 split models with Lightning LoRA integrat
 
 3. **Configure** - Connect your Wan2.2 models and set basic parameters
 
+## Why Use TripleKSampler?
+
+The TripleKSampler node streamlines complex multi-model workflows while respecting base model step resolution. The diagram below compares four different approaches:
+
+![Workflow Comparison](assets/workflows_compare.svg)
+
+**Workflow Comparison:**
+1. **Base Models Only** - Maximum quality, slowest generation (full base model processing)
+2. **Lightning Models Only** - Minimum quality, fastest generation (full lightning processing)
+3. **Typical 3 KSamplers** - Manual setup with decent quality and improved motion, but doesn't respect base model step resolution
+4. **TripleKSampler Node** - Automated approach with decent quality, improved motion, and proper base model step resolution
+
+The example shown uses `lightning_start=2`, `lightning_steps=8` with the default Base Quality Threshold and the 50% switch strategy. This demonstrates how TripleKSampler automates the complex model switching that would otherwise require manual KSampler coordination.
+
 ## Node Types
 
 | Node | Category | Best For | Key Features |
@@ -53,10 +67,15 @@ Triple-stage sampling nodes for Wan2.2 split models with Lightning LoRA integrat
 
 Example workflows are included in the `example_workflows/` directory.
 
+**Basic Workflows**: The `t2v_workflow.json` and `i2v_workflow.json` provide foundational examples for text-to-video and image-to-video generation using the TripleKSampler nodes.
+
 **Custom LoRAs**: The `t2v_custom_lora_workflow.json` demonstrates layering custom LoRAs with Lightning LoRAs. For I2V workflows, apply the same pattern to your I2V models.
 
 **Hybrid Workflow**: The `hybrid_workflow.json` showcases the Switch Strategy utility nodes for external strategy control. Demonstrates using different switching strategies for T2V and I2V branches in a single workflow.
 - **Requires**: [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) custom nodes
+
+**Math Node Comparison**: The `TripleKSampler_vs_MathSetup.json` demonstrates how to replicate TripleKSampler (Simple) behavior using manual math node calculations. This workflow provides a side-by-side comparison to help understand the internal calculations and validate the node's behavior.
+- **Requires**: [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) and [ComfyUI-Custom-Scripts](https://github.com/pythongosssss/ComfyUI-Custom-Scripts)
 
 ## Support
 
