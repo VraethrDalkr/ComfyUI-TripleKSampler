@@ -1,6 +1,6 @@
 # ComfyUI-TripleKSampler
 
-Professional triple-stage sampling nodes for Wan2.2 split models with Lightning LoRA integration. Simple to use, powerful results.
+Triple-stage sampling nodes for Wan2.2 split models with Lightning LoRA integration.
 
 ## Features
 
@@ -25,17 +25,19 @@ Professional triple-stage sampling nodes for Wan2.2 split models with Lightning 
 
 ## Node Types
 
-| Node | Best For | Key Features |
-|------|----------|--------------|
-| **TripleKSampler** | Most users | Smart defaults, auto-calculation, streamlined interface |
-| **TripleKSampler Advanced** | Power users | Full control, 5 switching strategies, dry-run testing |
+| Node | Category | Best For | Key Features |
+|------|----------|----------|--------------|
+| **TripleKSampler (Simple)** | Sampling | Most users | Smart defaults, auto-calculation, streamlined interface |
+| **TripleKSampler (Advanced)** | Sampling | Power users | Full control, 5 switching strategies, dry-run testing |
+| **Switch Strategy (Simple)** | Utilities | Simple node users | External strategy for TripleKSampler (Simple), 3 strategies |
+| **Switch Strategy (Advanced)** | Utilities | Advanced node users | External strategy for TripleKSampler (Advanced), 5 strategies |
 
 ## Essential Parameters
 
 - **sigma_shift** - Sigma shift value (default: 5.0)
 - **base_cfg** - CFG for base denoising (default: 3.5)
-- **lightning_steps** - Total lightning steps (default: 8)
 - **lightning_start** - Starting step in lightning schedule (default: 1)
+- **lightning_steps** - Total lightning steps (default: 8)
 
 ## Documentation
 
@@ -52,6 +54,9 @@ Professional triple-stage sampling nodes for Wan2.2 split models with Lightning 
 Example workflows are included in the `example_workflows/` directory.
 
 **Custom LoRAs**: The `t2v_custom_lora_workflow.json` demonstrates layering custom LoRAs with Lightning LoRAs. For I2V workflows, apply the same pattern to your I2V models.
+
+**Hybrid Workflow**: The `hybrid_workflow.json` showcases the Switch Strategy utility nodes for external strategy control. Demonstrates using different switching strategies for T2V and I2V branches in a single workflow.
+- **Requires**: [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) custom nodes
 
 ## Support
 
