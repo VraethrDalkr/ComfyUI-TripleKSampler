@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.9.1] - 2025-10-15
+### Fixed
+- Node resize loop during execution causing Advanced Sampler window to shake (issue #5)
+- Implemented execution state tracking in JavaScript UI to prevent canvas updates during active execution
+- Added deferred canvas update with 50ms safety delay after execution completes
+- Consolidated update logic in handleExecutionComplete() helper function
+
 ## [0.9.0] - 2025-10-15
 ### Changed
 - **BREAKING**: Advanced node now uses separate base/lightning sampler and scheduler parameters

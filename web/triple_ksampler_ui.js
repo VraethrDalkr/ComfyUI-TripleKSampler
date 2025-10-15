@@ -34,11 +34,20 @@ function toggleWidget(node, widgetName, show = false) {
 app.registerExtension({
     name: "TripleKSampler.DynamicUI",
 
+    // Track execution state to prevent resize loops during execution
+    executionState: {
+        activeExecutions: 0,  // Counter for nested/concurrent executions
+        pendingCanvasUpdate: false
+    },
+
     async nodeCreated(node) {
         // Only apply to the advanced TripleKSampler node
         if (node.comfyClass !== "TripleKSamplerWan22LightningAdvanced") {
             return;
         }
+
+        // Cache extension reference for internal use
+        const ext = this;
 
         // Find strategy widget
         const strategyWidget = findWidgetByName(node, "switch_strategy");
@@ -109,10 +118,15 @@ app.registerExtension({
             toggleWidget(node, "switch_step", showSwitchStep);
             toggleWidget(node, "switch_boundary", showSwitchBoundary);
 
-            // Refresh canvas
-            node.setDirtyCanvas(true, true);
-            if (node.graph && node.graph.canvas) {
-                node.graph.canvas.setDirty(true, true);
+            // Refresh canvas only if not executing to prevent resize loops
+            if (ext.executionState.activeExecutions === 0) {
+                node.setDirtyCanvas(true, true);
+                if (node.graph && node.graph.canvas) {
+                    node.graph.canvas.setDirty(true, true);
+                }
+            } else {
+                // Mark that we need to update canvas after execution completes
+                ext.executionState.pendingCanvasUpdate = true;
             }
         };
 
@@ -183,10 +197,15 @@ app.registerExtension({
                 const showBaseQualityThreshold = baseStepsValue === -1;
                 toggleWidget(node, "base_quality_threshold", showBaseQualityThreshold);
 
-                // Refresh canvas
-                node.setDirtyCanvas(true, true);
-                if (node.graph && node.graph.canvas) {
-                    node.graph.canvas.setDirty(true, true);
+                // Refresh canvas only if not executing to prevent resize loops
+                if (ext.executionState.activeExecutions === 0) {
+                    node.setDirtyCanvas(true, true);
+                    if (node.graph && node.graph.canvas) {
+                        node.graph.canvas.setDirty(true, true);
+                    }
+                } else {
+                    // Mark that we need to update canvas after execution completes
+                    ext.executionState.pendingCanvasUpdate = true;
                 }
             };
 
@@ -241,7 +260,7 @@ app.registerExtension({
                 }
             }, 50);
 
-            // Ensure button stays at bottom and refresh canvas
+            // Ensure button stays at bottom and refresh canvas (safe during setup, not execution)
             node.setDirtyCanvas(true, true);
             if (node.graph && node.graph.canvas) {
                 node.graph.canvas.setDirty(true, true);
@@ -252,6 +271,29 @@ app.registerExtension({
 
     // Listen for overlap warnings from backend and execution events
     setup() {
+        const ext = this;
+
+        // Helper function to handle deferred canvas updates
+        const handleExecutionComplete = () => {
+            ext.executionState.activeExecutions = Math.max(0, ext.executionState.activeExecutions - 1);
+
+            // Perform deferred canvas update only when all executions complete
+            if (ext.executionState.activeExecutions === 0 && ext.executionState.pendingCanvasUpdate) {
+                // Small delay to avoid race with ComfyUI's preview expansion settling
+                setTimeout(() => {
+                    if (app.graph && app.graph.canvas) {
+                        app.graph.canvas.setDirty(true, true);
+                    }
+                    ext.executionState.pendingCanvasUpdate = false;
+                }, 50);
+            }
+        };
+
+        // Track execution state to prevent resize loops
+        api.addEventListener("executing", () => {
+            ext.executionState.activeExecutions++;
+        });
+
         api.addEventListener("triple_ksampler_overlap", (ev) => {
             try {
                 const payload = ev.detail;
@@ -292,7 +334,7 @@ app.registerExtension({
         });
 
         // Listen for execution completion to reset dry_run parameters
-        api.addEventListener("executed", (ev) => {
+        api.addEventListener("executed", () => {
             try {
                 // Reset dry_run to false for all TripleKSampler nodes after execution
                 if (app.graph && app.graph._nodes) {
@@ -305,6 +347,9 @@ app.registerExtension({
                         }
                     }
                 }
+
+                // Handle execution completion and deferred canvas updates
+                handleExecutionComplete();
             } catch (e) {
                 console.error(
                     "TripleKSampler extension failed to handle execution event:",
@@ -314,7 +359,7 @@ app.registerExtension({
         });
 
         // Listen for execution interruption to reset dry_run parameters
-        api.addEventListener("execution_interrupted", (ev) => {
+        api.addEventListener("execution_interrupted", () => {
             try {
                 // Reset dry_run to false for all TripleKSampler nodes after interruption
                 if (app.graph && app.graph._nodes) {
@@ -327,6 +372,9 @@ app.registerExtension({
                         }
                     }
                 }
+
+                // Handle execution completion and deferred canvas updates
+                handleExecutionComplete();
             } catch (e) {
                 console.error(
                     "TripleKSampler extension failed to handle interruption event:",
