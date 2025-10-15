@@ -67,14 +67,19 @@ The example shown uses `lightning_start=2`, `lightning_steps=8` with the default
 
 Example workflows are included in the `example_workflows/` directory.
 
-**Basic Workflows**: The `t2v_workflow.json` and `i2v_workflow.json` provide foundational examples for text-to-video and image-to-video generation using the TripleKSampler nodes.
+**Text-to-Video (T2V)**:
+- `t2v_simple.json` - Simple node with smart defaults
+- `t2v_advanced.json` - Advanced node with full parameter control
+- `t2v_simple_custom_lora.json` - Demonstrates layering custom LoRAs with Lightning LoRAs
 
-**Custom LoRAs**: The `t2v_custom_lora_workflow.json` demonstrates layering custom LoRAs with Lightning LoRAs. For I2V workflows, apply the same pattern to your I2V models.
+**Image-to-Video (I2V)**:
+- `i2v_simple.json` - Simple node with smart defaults
+- `i2v_advanced.json` - Advanced node with full parameter control
 
-**Hybrid Workflow**: The `hybrid_workflow.json` showcases the Switch Strategy utility nodes for external strategy control. Demonstrates using different switching strategies for T2V and I2V branches in a single workflow.
+**Hybrid Workflow**: `hybrid_workflow.json` showcases the Switch Strategy utility nodes for external strategy control. Demonstrates using different switching strategies for T2V and I2V branches in a single workflow.
 - **Requires**: [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) custom nodes
 
-**Math Node Comparison**: The `TripleKSampler_vs_MathSetup.json` demonstrates how to replicate TripleKSampler (Simple) behavior using manual math node calculations. This workflow provides a side-by-side comparison to help understand the internal calculations and validate the node's behavior.
+**Math Node Comparison**: `tripleksampler_vs_math.json` demonstrates how to replicate TripleKSampler (Simple) behavior using manual math node calculations. This workflow provides a side-by-side comparison to help understand the internal calculations and validate the node's behavior.
 - **Requires**: [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) and [ComfyUI-Custom-Scripts](https://github.com/pythongosssss/ComfyUI-Custom-Scripts)
 
 ## Support

@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.9.0] - 2025-10-15
+### Changed
+- **BREAKING**: Advanced node now uses separate base/lightning sampler and scheduler parameters
+  - New parameters: `base_sampler`, `base_scheduler`, `lightning_sampler`, `lightning_scheduler`
+  - Removed parameters: `sampler_name`, `scheduler`
+  - Enables independent control of sampling algorithms for base model vs lightning stages
+  - Simple node maintains backward compatibility with original `sampler_name` and `scheduler` parameters
+
+### Migration Guide
+**Advanced Node Users**: Update workflows to specify:
+- `base_sampler` + `base_scheduler` (for base model stages)
+- `lightning_sampler` + `lightning_scheduler` (for lightning stages)
+
+**Simple Node Users**: No changes required - continues using `sampler_name` and `scheduler`
+
 ## [0.8.8] - 2025-10-14
 ### Added
 - Workflow comparison diagram (assets/workflows_compare.svg) visualizing 4 different sampling approaches

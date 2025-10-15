@@ -207,8 +207,8 @@ class TripleKSamplerWan22Base:
         """Return the shared INPUT_TYPES mapping used by both nodes."""
         return {
             "base_high": ("MODEL", {"tooltip": "Base high-noise model for Stage 1."}),
-            "lightning_high": ("MODEL", {"tooltip": "Lightning high-noise model."}),
-            "lightning_low": ("MODEL", {"tooltip": "Lightning low-noise model."}),
+            "lightning_high": ("MODEL", {"tooltip": "Lightning high-noise model for Stage 2."}),
+            "lightning_low": ("MODEL", {"tooltip": "Lightning low-noise model for Stage 3."}),
             "positive": ("CONDITIONING", {"tooltip": "Positive prompt conditioning."}),
             "negative": ("CONDITIONING", {"tooltip": "Negative prompt conditioning."}),
             "latent_image": ("LATENT", {"tooltip": "Latent image to denoise."}),
@@ -250,8 +250,6 @@ class TripleKSamplerWan22Base:
                     "tooltip": "Total steps for lightning stages.",
                 },
             ),
-            "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"tooltip": "Sampler to use."}),
-            "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {"tooltip": "Scheduler to use."}),
         }
 
     @classmethod
@@ -712,7 +710,7 @@ class TripleKSamplerWan22Base:
             switch_boundary: Manual boundary value
             lightning_steps: Total lightning steps
             patched_lightning_high: Patched lightning high model for boundary calculations
-            scheduler: Scheduler name
+            scheduler: Lightning scheduler name (used for boundary-based switching)
 
         Returns:
             Tuple of (switch_step_final, effective_strategy, model_switching_info)
@@ -802,6 +800,14 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                     },
                 ),
                 "base_cfg": base_inputs["base_cfg"],
+                "base_sampler": (
+                    comfy.samplers.KSampler.SAMPLERS,
+                    {"tooltip": "Sampler for Stage 1 (base model)."},
+                ),
+                "base_scheduler": (
+                    comfy.samplers.KSampler.SCHEDULERS,
+                    {"tooltip": "Scheduler for Stage 1 (base model)."},
+                ),
                 # Lightning parameters
                 "lightning_start": (
                     "INT",
@@ -823,9 +829,15 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         "tooltip": "CFG scale for Stage 2 and Stage 3. In regular node, automatically set to 1.0.",
                     },
                 ),
-                # Sampler parameters
-                "sampler_name": base_inputs["sampler_name"],
-                "scheduler": base_inputs["scheduler"],
+                "lightning_sampler": (
+                    comfy.samplers.KSampler.SAMPLERS,
+                    {"tooltip": "Sampler for Stage 2 and Stage 3 (lightning models)."},
+                ),
+                "lightning_scheduler": (
+                    comfy.samplers.KSampler.SCHEDULERS,
+                    {"tooltip": "Scheduler for Stage 2 and Stage 3 (lightning models)."},
+                ),
+                # Switching parameters
                 "switch_strategy": (
                     [
                         "50% of steps",
@@ -847,7 +859,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         "default": -1,
                         "min": -1,
                         "max": 99,
-                        "tooltip": "Manual step to switch models. Use -1 for auto-calculation at 50% of lightning steps.",
+                        "tooltip": "Manual step to switch models. Only used when switch_strategy is 'Manual switch step'. Use -1 for auto-calculation at 50% of lightning steps. Ignored for all other strategies.",
                     },
                 ),
                 "switch_boundary": (
@@ -857,7 +869,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         "min": 0.0,
                         "max": 1.0,
                         "step": 0.001,
-                        "tooltip": "Sigma boundary for switching. Defaults to 0.875. T2V/I2V strategies use preset values.",
+                        "tooltip": "Sigma boundary for switching. Only used when switch_strategy is 'Manual boundary'. Ignored for all other strategies.",
                     },
                 ),
                 "dry_run": (
@@ -888,11 +900,13 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         base_steps: int,
         base_quality_threshold: int,
         base_cfg: float,
+        base_sampler: str,
+        base_scheduler: str,
         lightning_start: int,
         lightning_steps: int,
         lightning_cfg: float,
-        sampler_name: str,
-        scheduler: str,
+        lightning_sampler: str,
+        lightning_scheduler: str,
         switch_strategy: str,
         switch_boundary: float = 0.875,
         switch_step: int = -1,
@@ -903,14 +917,15 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             bare_logger.info("")
         logger.debug("=== TripleKSampler Node - Input Parameters ===")
         logger.debug("Sampling: seed=%d, sigma_shift=%.3f", seed, sigma_shift)
-        logger.debug("Base stage: base_steps=%d, base_quality_threshold=%d, base_cfg=%.1f", base_steps, base_quality_threshold, base_cfg)
+        logger.debug("Base stage: base_quality_threshold=%d, base_steps=%d, base_cfg=%.1f", base_quality_threshold, base_steps, base_cfg)
+        logger.debug("Base sampler: %s, scheduler: %s", base_sampler, base_scheduler)
         logger.debug(
             "Lightning: lightning_start=%d, lightning_steps=%d, lightning_cfg=%.1f",
             lightning_start,
             lightning_steps,
             lightning_cfg,
         )
-        logger.debug("Sampler: %s, scheduler: %s", sampler_name, scheduler)
+        logger.debug("Lightning sampler: %s, scheduler: %s", lightning_sampler, lightning_scheduler)
         logger.debug("Strategy: %s", switch_strategy)
         if switch_strategy == "Manual boundary":
             logger.debug("  switch_boundary=%.3f", switch_boundary)
@@ -995,7 +1010,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
 
         # Calculate switch step and strategy information
         switch_step_final, _, model_switching_info = self._calculate_switch_step_and_strategy(
-            switch_strategy, switch_step, switch_boundary, lightning_steps, patched_lightning_high, scheduler
+            switch_strategy, switch_step, switch_boundary, lightning_steps, patched_lightning_high, lightning_scheduler
         )
 
         # Stage execution logic flags
@@ -1045,8 +1060,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 seed=seed,
                 steps=total_base_steps,
                 cfg=base_cfg,
-                sampler_name=sampler_name,
-                scheduler=scheduler,
+                sampler_name=base_sampler,
+                scheduler=base_scheduler,
                 start_at_step=0,
                 end_at_step=base_steps,
                 add_noise=stage1_add_noise,
@@ -1073,8 +1088,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                 seed=seed,
                 steps=lightning_steps,
                 cfg=lightning_cfg,
-                sampler_name=sampler_name,
-                scheduler=scheduler,
+                sampler_name=lightning_sampler,
+                scheduler=lightning_scheduler,
                 start_at_step=lightning_start,
                 end_at_step=switch_step_final,
                 add_noise=stage2_add_noise,
@@ -1096,8 +1111,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
             seed=seed + STAGE3_SEED_OFFSET,
             steps=lightning_steps,
             cfg=lightning_cfg,  # Use lightning_cfg parameter for advanced node flexibility
-            sampler_name=sampler_name,
-            scheduler=scheduler,
+            sampler_name=lightning_sampler,
+            scheduler=lightning_scheduler,
             start_at_step=stage3_start,
             end_at_step=lightning_steps,
             add_noise=stage3_add_noise,
@@ -1255,8 +1270,8 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
                 ),
                 "lightning_steps": base_inputs["lightning_steps"],
                 # Sampler params
-                "sampler_name": base_inputs["sampler_name"],
-                "scheduler": base_inputs["scheduler"],
+                "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"tooltip": "Sampler to use for all stages."}),
+                "scheduler": (comfy.samplers.KSampler.SCHEDULERS, {"tooltip": "Scheduler to use for all stages."}),
                 "switch_strategy": (
                     ["50% of steps", "T2V boundary", "I2V boundary"],
                     {
@@ -1309,11 +1324,13 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
             sigma_shift=sigma_shift,
             base_steps=-1,
             base_cfg=base_cfg,
+            base_sampler=sampler_name,
+            base_scheduler=scheduler,
             lightning_start=lightning_start,
             lightning_steps=lightning_steps,
             lightning_cfg=SIMPLE_NODE_LIGHTNING_CFG,
-            sampler_name=sampler_name,
-            scheduler=scheduler,
+            lightning_sampler=sampler_name,
+            lightning_scheduler=scheduler,
             switch_strategy=switch_strategy,
             switch_boundary=0.875,
             switch_step=-1,
