@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.9.2] - 2025-10-15
+### Added
+- New TripleKSampler (Advanced Alt) node with static UI - all parameters always visible
+- Stable alternative for users experiencing dynamic UI issues (issue #5)
+- Node is immune to resize loops due to static parameter layout
+
+### Changed
+- Refactored class inheritance hierarchy for optimal DRY architecture (Base → AdvancedAlt → Advanced → Simple)
+- Renamed internal class names for maintainability (TripleKSampler* from TripleKSamplerWan22*)
+- Cleaned up __init__.py to minimal ComfyUI requirements
+- Updated example workflows with stability notes pointing to Advanced Alt node
+
+### Technical
+- Full backward compatibility preserved via NODE_CLASS_MAPPINGS keys
+- All 125 tests passing
+
 ## [0.9.1] - 2025-10-15
 ### Fixed
 - Node resize loop during execution causing Advanced Sampler window to shake (issue #5)

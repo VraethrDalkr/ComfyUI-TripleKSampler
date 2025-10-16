@@ -1,6 +1,6 @@
 [project]
 name = "tripleksampler"
-version = "0.9.1"
+version = "0.9.2"
 description = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 readme = "README.md"
 license = { file = "LICENSE" }

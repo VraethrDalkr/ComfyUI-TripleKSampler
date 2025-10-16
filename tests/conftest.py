@@ -55,9 +55,10 @@ try:
             f"Module's nodes reference is wrong: {module.nodes}"
 
         # Get the classes - make them available globally
-        TripleKSamplerWan22Base = module.TripleKSamplerWan22Base
-        TripleKSamplerWan22LightningAdvanced = module.TripleKSamplerWan22LightningAdvanced
-        TripleKSamplerWan22Lightning = module.TripleKSamplerWan22Lightning
+        TripleKSamplerBase = module.TripleKSamplerBase
+        TripleKSamplerAdvanced = module.TripleKSamplerAdvanced
+        TripleKSampler = module.TripleKSampler
+        TripleKSamplerAdvancedAlt = module.TripleKSamplerAdvancedAlt
     else:
         raise ImportError("Could not load main module")
     COMFYUI_AVAILABLE = True
@@ -148,26 +149,26 @@ def standard_params(mock_models, mock_conditioning, mock_latent):
 
 @pytest.fixture
 def advanced_node():
-    """Fixture providing TripleKSamplerWan22LightningAdvanced instance."""
+    """Fixture providing TripleKSamplerAdvanced instance."""
     if not COMFYUI_AVAILABLE:
         pytest.skip("ComfyUI dependencies not available")
-    return TripleKSamplerWan22LightningAdvanced()
+    return TripleKSamplerAdvanced()
 
 
 @pytest.fixture
 def simple_node():
-    """Fixture providing TripleKSamplerWan22Lightning instance."""
+    """Fixture providing TripleKSampler instance."""
     if not COMFYUI_AVAILABLE:
         pytest.skip("ComfyUI dependencies not available")
-    return TripleKSamplerWan22Lightning()
+    return TripleKSampler()
 
 
 @pytest.fixture
 def base_node():
-    """Fixture providing TripleKSamplerWan22Base instance."""
+    """Fixture providing TripleKSamplerBase instance."""
     if not COMFYUI_AVAILABLE:
         pytest.skip("ComfyUI dependencies not available")
-    return TripleKSamplerWan22Base()
+    return TripleKSamplerBase()
 
 
 # Custom assertion helpers

@@ -40,8 +40,8 @@ try:
         spec.loader.exec_module(module)
 
         # Get the classes
-        TripleKSamplerWan22LightningAdvanced = module.TripleKSamplerWan22LightningAdvanced
-        TripleKSamplerWan22Lightning = module.TripleKSamplerWan22Lightning
+        TripleKSamplerAdvanced = module.TripleKSamplerAdvanced
+        TripleKSampler = module.TripleKSampler
     else:
         raise ImportError("Could not load main module")
     COMFYUI_AVAILABLE = True
@@ -59,8 +59,8 @@ class TestCFGBehavior:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.advanced_node = TripleKSamplerWan22LightningAdvanced()
-        self.simple_node = TripleKSamplerWan22Lightning()
+        self.advanced_node = TripleKSamplerAdvanced()
+        self.simple_node = TripleKSampler()
 
         # Create model mocks
         self.mock_base_high = MagicMock()

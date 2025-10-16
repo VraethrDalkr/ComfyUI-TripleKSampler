@@ -36,8 +36,8 @@ try:
         spec.loader.exec_module(module)
 
         # Get the classes
-        TripleKSamplerWan22Base = module.TripleKSamplerWan22Base
-        TripleKSamplerWan22LightningAdvanced = module.TripleKSamplerWan22LightningAdvanced
+        TripleKSamplerBase = module.TripleKSamplerBase
+        TripleKSamplerAdvanced = module.TripleKSamplerAdvanced
     else:
         raise ImportError("Could not load main module")
     COMFYUI_AVAILABLE = True
@@ -57,7 +57,7 @@ class TestCalculatePerfectAlignment:
     def test_simple_case_lightning_start_1(self):
         """Test simple case with lightning_start=1."""
         # Simple case: lightning_start=1, should use direct calculation
-        base_steps, total_base_steps, method = TripleKSamplerWan22Base._calculate_perfect_alignment(
+        base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
             base_quality_threshold=20,
             lightning_start=1,
             lightning_steps=8
@@ -71,7 +71,7 @@ class TestCalculatePerfectAlignment:
     def test_simple_case_different_values(self):
         """Test simple case with different parameter values."""
         # Test with different values
-        base_steps, total_base_steps, method = TripleKSamplerWan22Base._calculate_perfect_alignment(
+        base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
             base_quality_threshold=15,
             lightning_start=1,
             lightning_steps=6
@@ -85,7 +85,7 @@ class TestCalculatePerfectAlignment:
     def test_complex_case_mathematical_search(self):
         """Test complex case that finds perfect alignment."""
         # Complex case: lightning_start=2, should find mathematical solution
-        base_steps, total_base_steps, method = TripleKSamplerWan22Base._calculate_perfect_alignment(
+        base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
             base_quality_threshold=20,
             lightning_start=2,
             lightning_steps=8
@@ -99,7 +99,7 @@ class TestCalculatePerfectAlignment:
 
     def test_complex_case_lightning_start_3(self):
         """Test complex case with lightning_start=3."""
-        base_steps, total_base_steps, method = TripleKSamplerWan22Base._calculate_perfect_alignment(
+        base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
             base_quality_threshold=20,
             lightning_start=3,
             lightning_steps=8
@@ -114,7 +114,7 @@ class TestCalculatePerfectAlignment:
     def test_fallback_case(self):
         """Test fallback when no perfect alignment is found."""
         # Create a case where perfect alignment is unlikely in the search range
-        base_steps, total_base_steps, method = TripleKSamplerWan22Base._calculate_perfect_alignment(
+        base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
             base_quality_threshold=100,
             lightning_start=7,
             lightning_steps=11
@@ -128,7 +128,7 @@ class TestCalculatePerfectAlignment:
     def test_edge_case_lightning_start_0(self):
         """Test edge case with lightning_start=0."""
         # Edge case: lightning_start=0 (lightning-only mode)
-        base_steps, total_base_steps, method = TripleKSamplerWan22Base._calculate_perfect_alignment(
+        base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
             base_quality_threshold=20,
             lightning_start=0,
             lightning_steps=8
@@ -141,7 +141,7 @@ class TestCalculatePerfectAlignment:
 
     def test_large_values(self):
         """Test with larger parameter values."""
-        base_steps, total_base_steps, method = TripleKSamplerWan22Base._calculate_perfect_alignment(
+        base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
             base_quality_threshold=50,
             lightning_start=1,
             lightning_steps=16
@@ -163,7 +163,7 @@ class TestCalculatePercentage:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.base_instance = TripleKSamplerWan22Base()
+        self.base_instance = TripleKSamplerBase()
 
     def test_normal_percentages(self):
         """Test normal percentage calculations."""
@@ -217,7 +217,7 @@ class TestFormatStageRange:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.base_instance = TripleKSamplerWan22Base()
+        self.base_instance = TripleKSamplerBase()
 
     def test_normal_stage_ranges(self):
         """Test normal stage range formatting."""
@@ -265,7 +265,7 @@ class TestComputeBoundarySwitchingStep:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.advanced_node = TripleKSamplerWan22LightningAdvanced()
+        self.advanced_node = TripleKSamplerAdvanced()
 
         # Mock sampling object
         self.mock_sampling = MagicMock()

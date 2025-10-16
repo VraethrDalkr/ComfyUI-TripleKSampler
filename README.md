@@ -5,7 +5,7 @@ Triple-stage sampling nodes for Wan2.2 split models with Lightning LoRA integrat
 ## Features
 
 - **Triple-Stage Workflow** - Base denoising → Lightning high → Lightning low
-- **Two Node Variants** - Simple (smart defaults) and Advanced (full control)
+- **Three Node Variants** - Simple (smart defaults), Advanced (dynamic UI), Advanced Alt (static UI)
 - **Intelligent Auto-Calculation** - Optimal parameter computation
 - **Model-Safe Cloning** - No mutation of original models
 - **Sigma Shift Integration** - Built-in ModelSamplingSD3 support
@@ -42,7 +42,8 @@ The example shown uses `lightning_start=2`, `lightning_steps=8` with the default
 | Node | Category | Best For | Key Features |
 |------|----------|----------|--------------|
 | **TripleKSampler (Simple)** | Sampling | Most users | Smart defaults, auto-calculation, streamlined interface |
-| **TripleKSampler (Advanced)** | Sampling | Power users | Full control, 5 switching strategies, dry-run testing |
+| **TripleKSampler (Advanced)** | Sampling | Power users | Full control, 5 switching strategies, dynamic UI, dry-run testing |
+| **TripleKSampler (Advanced Alt)** | Sampling | Power users | Full control, 5 switching strategies, static UI, dry-run testing - use if dynamic UI causes issues |
 | **Switch Strategy (Simple)** | Utilities | Simple node users | External strategy for TripleKSampler (Simple), 3 strategies |
 | **Switch Strategy (Advanced)** | Utilities | Advanced node users | External strategy for TripleKSampler (Advanced), 5 strategies |
 

@@ -520,7 +520,7 @@ class TestPerformanceAndLargeLatents:
         sys.modules['nodes'] = module
         spec.loader.exec_module(module)
 
-        advanced_node = module.TripleKSamplerWan22LightningAdvanced()
+        advanced_node = module.TripleKSamplerAdvanced()
 
         # Test with realistic large latent sizes
         large_latent_shapes = [
@@ -608,7 +608,7 @@ class TestPerformanceAndLargeLatents:
         sys.modules['nodes'] = module
         spec.loader.exec_module(module)
 
-        advanced_node = module.TripleKSamplerWan22LightningAdvanced()
+        advanced_node = module.TripleKSamplerAdvanced()
 
         # Test different lightning_steps values to verify O(n) complexity
         step_counts = [4, 8, 16, 32]

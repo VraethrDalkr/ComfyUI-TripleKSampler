@@ -41,8 +41,8 @@ try:
         spec.loader.exec_module(module)
 
         # Get the classes
-        TripleKSamplerWan22LightningAdvanced = module.TripleKSamplerWan22LightningAdvanced
-        TripleKSamplerWan22Lightning = module.TripleKSamplerWan22Lightning
+        TripleKSamplerAdvanced = module.TripleKSamplerAdvanced
+        TripleKSampler = module.TripleKSampler
     else:
         raise ImportError("Could not load main module")
     COMFYUI_AVAILABLE = True
@@ -60,8 +60,8 @@ class TestParameterValidation:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.advanced_node = TripleKSamplerWan22LightningAdvanced()
-        self.simple_node = TripleKSamplerWan22Lightning()
+        self.advanced_node = TripleKSamplerAdvanced()
+        self.simple_node = TripleKSampler()
         
         # Mock models and inputs with proper ComfyUI compatibility
         from unittest.mock import MagicMock
@@ -263,7 +263,7 @@ class TestEdgeCases:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.advanced_node = TripleKSamplerWan22LightningAdvanced()
+        self.advanced_node = TripleKSamplerAdvanced()
 
         # Set up proper mocks like in TestParameterValidation
         from unittest.mock import MagicMock
@@ -354,7 +354,7 @@ class TestSimpleNodeLightningStart:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.simple_node = TripleKSamplerWan22Lightning()
+        self.simple_node = TripleKSampler()
 
         # Create proper model mocks
         self.mock_base_high = MagicMock()
@@ -498,7 +498,7 @@ class TestDryRunMode:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.advanced_node = TripleKSamplerWan22LightningAdvanced()
+        self.advanced_node = TripleKSamplerAdvanced()
 
         # Create proper model mocks
         self.mock_base_high = MagicMock()
@@ -637,7 +637,7 @@ class TestConfigParameterBoundaries:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.advanced_node = TripleKSamplerWan22LightningAdvanced()
+        self.advanced_node = TripleKSamplerAdvanced()
 
         # Create proper model mocks
         self.mock_base_high = MagicMock()
@@ -835,7 +835,7 @@ class TestBaseQualityThreshold:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.advanced_node = TripleKSamplerWan22LightningAdvanced()
+        self.advanced_node = TripleKSamplerAdvanced()
 
         # Mock models
         self.mock_base_high = MagicMock()
@@ -1057,7 +1057,7 @@ class TestDryRunUIFeatures:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.advanced_node = TripleKSamplerWan22LightningAdvanced()
+        self.advanced_node = TripleKSamplerAdvanced()
 
         # Mock models
         self.mock_base_high = MagicMock()
@@ -1225,7 +1225,7 @@ class TestDynamicWidgetLogic:
 
     def test_advanced_node_input_types_has_base_quality_threshold(self):
         """Test that the Advanced node INPUT_TYPES includes base_quality_threshold widget."""
-        input_types = TripleKSamplerWan22LightningAdvanced.INPUT_TYPES()
+        input_types = TripleKSamplerAdvanced.INPUT_TYPES()
 
         # Should have base_quality_threshold in required inputs
         assert "base_quality_threshold" in input_types["required"]
@@ -1243,7 +1243,7 @@ class TestDynamicWidgetLogic:
 
     def test_advanced_node_input_types_has_dynamic_widgets(self):
         """Test that the Advanced node has widgets for dynamic visibility."""
-        input_types = TripleKSamplerWan22LightningAdvanced.INPUT_TYPES()
+        input_types = TripleKSamplerAdvanced.INPUT_TYPES()
 
         # Should have switch strategy widget in required
         assert "switch_strategy" in input_types["required"]
@@ -1258,7 +1258,7 @@ class TestDynamicWidgetLogic:
 
     def test_simple_node_input_types_no_base_quality_threshold(self):
         """Test that the Simple node doesn't expose base_quality_threshold."""
-        input_types = TripleKSamplerWan22Lightning.INPUT_TYPES()
+        input_types = TripleKSampler.INPUT_TYPES()
 
         # Should NOT have base_quality_threshold in Simple node
         assert "base_quality_threshold" not in input_types["required"]

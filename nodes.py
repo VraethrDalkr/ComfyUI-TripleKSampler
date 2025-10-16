@@ -193,7 +193,7 @@ bare_logger.propagate = False
 bare_logger.setLevel(logging.INFO)  # Always show separators
 
 
-class TripleKSamplerWan22Base:
+class TripleKSamplerBase:
     """Base class containing shared functionality for TripleKSampler nodes."""
 
     # ComfyUI required attributes
@@ -759,12 +759,13 @@ class TripleKSamplerWan22Base:
 
         return switch_step_final, effective_strategy, model_switching_info
 
-class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
-    """Advanced triple-stage node with full parameter control."""
+
+class TripleKSamplerAdvancedAlt(TripleKSamplerBase):
+    """Advanced triple-stage node with all parameters exposed (static UI)."""
 
     @classmethod
     def INPUT_TYPES(cls) -> Dict[str, Dict[str, Any]]:
-        """Return ComfyUI INPUT_TYPES mapping for the advanced node."""
+        """Return ComfyUI INPUT_TYPES mapping with all parameters in required section."""
         base_inputs = cls._get_base_input_types()
 
         return {
@@ -851,15 +852,13 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         "tooltip": "Strategy for switching between lightning high and low models.",
                     },
                 ),
-            },
-            "optional": {
                 "switch_step": (
                     "INT",
                     {
                         "default": -1,
                         "min": -1,
                         "max": 99,
-                        "tooltip": "Manual step to switch models. Only used when switch_strategy is 'Manual switch step'. Use -1 for auto-calculation at 50% of lightning steps. Ignored for all other strategies.",
+                        "tooltip": "Manual step to switch models. Only used when switch_strategy is 'Manual switch step'. Use -1 for auto-calculation at 50% of lightning steps.",
                     },
                 ),
                 "switch_boundary": (
@@ -869,7 +868,7 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
                         "min": 0.0,
                         "max": 1.0,
                         "step": 0.001,
-                        "tooltip": "Sigma boundary for switching. Only used when switch_strategy is 'Manual boundary'. Ignored for all other strategies.",
+                        "tooltip": "Sigma boundary for switching. Only used when switch_strategy is 'Manual boundary'.",
                     },
                 ),
                 "dry_run": (
@@ -883,8 +882,8 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         }
 
     DESCRIPTION = (
-        "Advanced triple-stage cascade sampler with full parameter control for "
-        "Wan2.2 split models with Lightning LoRA."
+        "Advanced triple-stage cascade sampler with all parameters exposed for "
+        "Wan2.2 split models with Lightning LoRA. Static UI variant with all parameters always visible."
     )
 
     def sample(
@@ -1142,6 +1141,137 @@ class TripleKSamplerWan22LightningAdvanced(TripleKSamplerWan22Base):
         return stage3_result
 
 
+class TripleKSamplerAdvanced(TripleKSamplerAdvancedAlt):
+    """Advanced triple-stage node with dynamic UI (context-aware parameter visibility)."""
+
+    @classmethod
+    def INPUT_TYPES(cls) -> Dict[str, Dict[str, Any]]:
+        """Return ComfyUI INPUT_TYPES mapping for the advanced node."""
+        base_inputs = cls._get_base_input_types()
+
+        return {
+            "required": {
+                # Models
+                "base_high": base_inputs["base_high"],
+                "lightning_high": base_inputs["lightning_high"],
+                "lightning_low": base_inputs["lightning_low"],
+                # Conditioning
+                "positive": base_inputs["positive"],
+                "negative": base_inputs["negative"],
+                "latent_image": base_inputs["latent_image"],
+                # Base parameters
+                "seed": base_inputs["seed"],
+                "sigma_shift": base_inputs["sigma_shift"],
+                "base_quality_threshold": (
+                    "INT",
+                    {
+                        "default": _DEFAULT_BASE_QUALITY_THRESHOLD,
+                        "min": 1,
+                        "max": 100,
+                        "step": 1,
+                        "tooltip": f"Minimum total steps for base_steps auto-calculation (config default: {_BASE_QUALITY_THRESHOLD}). Only applies when base_steps=-1.",
+                    },
+                ),
+                "base_steps": (
+                    "INT",
+                    {
+                        "default": -1,
+                        "min": -1,
+                        "max": 100,
+                        "tooltip": "Stage 1 steps for base high-noise model. Use -1 for auto-calculation based on quality threshold.",
+                    },
+                ),
+                "base_cfg": base_inputs["base_cfg"],
+                "base_sampler": (
+                    comfy.samplers.KSampler.SAMPLERS,
+                    {"tooltip": "Sampler for Stage 1 (base model)."},
+                ),
+                "base_scheduler": (
+                    comfy.samplers.KSampler.SCHEDULERS,
+                    {"tooltip": "Scheduler for Stage 1 (base model)."},
+                ),
+                # Lightning parameters
+                "lightning_start": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 0,
+                        "max": 99,
+                        "tooltip": "Starting step within lightning schedule. Set to 0 to skip Stage 1 entirely.",
+                    },
+                ),
+                "lightning_steps": base_inputs["lightning_steps"],
+                "lightning_cfg": (
+                    "FLOAT",
+                    {
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 100.0,
+                        "step": 0.1,
+                        "tooltip": "CFG scale for Stage 2 and Stage 3. In regular node, automatically set to 1.0.",
+                    },
+                ),
+                "lightning_sampler": (
+                    comfy.samplers.KSampler.SAMPLERS,
+                    {"tooltip": "Sampler for Stage 2 and Stage 3 (lightning models)."},
+                ),
+                "lightning_scheduler": (
+                    comfy.samplers.KSampler.SCHEDULERS,
+                    {"tooltip": "Scheduler for Stage 2 and Stage 3 (lightning models)."},
+                ),
+                # Switching parameters
+                "switch_strategy": (
+                    [
+                        "50% of steps",
+                        "Manual switch step",
+                        "T2V boundary",
+                        "I2V boundary",
+                        "Manual boundary",
+                    ],
+                    {
+                        "default": "50% of steps",
+                        "tooltip": "Strategy for switching between lightning high and low models.",
+                    },
+                ),
+            },
+            "optional": {
+                "switch_step": (
+                    "INT",
+                    {
+                        "default": -1,
+                        "min": -1,
+                        "max": 99,
+                        "tooltip": "Manual step to switch models. Only used when switch_strategy is 'Manual switch step'. Use -1 for auto-calculation at 50% of lightning steps. Ignored for all other strategies.",
+                    },
+                ),
+                "switch_boundary": (
+                    "FLOAT",
+                    {
+                        "default": 0.875,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.001,
+                        "tooltip": "Sigma boundary for switching. Only used when switch_strategy is 'Manual boundary'. Ignored for all other strategies.",
+                    },
+                ),
+                "dry_run": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": "Enable dry run mode to test stage calculations without actual sampling.",
+                    },
+                ),
+            },
+        }
+
+    DESCRIPTION = (
+        "Advanced triple-stage cascade sampler with dynamic UI for "
+        "Wan2.2 split models with Lightning LoRA. Context-aware parameter visibility."
+    )
+
+    # sample() method inherited from TripleKSamplerAdvancedAlt
+
+
 class SwitchStrategySimple:
     """Utility node for selecting switch strategies for TripleKSampler (Simple).
 
@@ -1238,8 +1368,8 @@ class SwitchStrategyAdvanced:
         return (switch_strategy,)
 
 
-class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
-    """Simplified triple-stage sampler with sensible defaults."""
+class TripleKSampler(TripleKSamplerAdvanced):
+    """Simplified triple-stage sampler with sensible defaults and auto-calculated parameters."""
 
     @classmethod
     def INPUT_TYPES(cls) -> Dict[str, Dict[str, Any]]:
@@ -1340,8 +1470,9 @@ class TripleKSamplerWan22Lightning(TripleKSamplerWan22LightningAdvanced):
 
 # Node registration mapping (ComfyUI expects these names)
 NODE_CLASS_MAPPINGS = {
-    "TripleKSamplerWan22Lightning": TripleKSamplerWan22Lightning,
-    "TripleKSamplerWan22LightningAdvanced": TripleKSamplerWan22LightningAdvanced,
+    "TripleKSamplerWan22Lightning": TripleKSampler,
+    "TripleKSamplerWan22LightningAdvanced": TripleKSamplerAdvanced,
+    "TripleKSamplerWan22LightningAdvancedAlt": TripleKSamplerAdvancedAlt,
     "SwitchStrategySimple": SwitchStrategySimple,
     "SwitchStrategyAdvanced": SwitchStrategyAdvanced,
 }
@@ -1349,6 +1480,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "TripleKSamplerWan22Lightning": "TripleKSampler (Simple)",
     "TripleKSamplerWan22LightningAdvanced": "TripleKSampler (Advanced)",
+    "TripleKSamplerWan22LightningAdvancedAlt": "TripleKSampler (Advanced Alt)",
     "SwitchStrategySimple": "Switch Strategy (Simple)",
     "SwitchStrategyAdvanced": "Switch Strategy (Advanced)",
 }
