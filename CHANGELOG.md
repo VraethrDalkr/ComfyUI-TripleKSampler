@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.9.3] - 2025-11-14
+### Changed
+- Seed parameter now includes `control_after_generate` attribute to match core KSampler nodes exactly
+- Addresses issue #10: potential caching and seed control widget issues
+- Seed parameter definition now identical to ComfyUI's KSampler for better compatibility
+
 ## [0.9.2] - 2025-10-15
 ### Added
 - New TripleKSampler (Advanced Alt) node with static UI - all parameters always visible

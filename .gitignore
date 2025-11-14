@@ -60,6 +60,8 @@ node.zip
 # Development files
 CLAUDE.md
 .claude/
+notes/
+.mcp.json
 
 # User configuration
 config.toml
@@ -75,6 +77,7 @@ stubs/
 .pytest_cache/
 .coverage
 htmlcov/
+.ruff_cache/
 
 # Security and pre-commit
 .pre-commit-config.yaml

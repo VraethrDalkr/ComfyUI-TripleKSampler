@@ -7,7 +7,7 @@ triple-stage sampling workflow optimized for Wan2.2 split models with Lightning 
 
 from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
-__version__ = "0.9.2"
+__version__ = "0.9.3"
 __author__ = "VraethrDalkr"
 __description__ = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 

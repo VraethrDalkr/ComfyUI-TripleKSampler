@@ -217,8 +217,9 @@ class TripleKSamplerBase:
                 {
                     "default": 0,
                     "min": 0,
-                    "max": 0xFFFFFFFFFFFFFFFF,
-                    "tooltip": "Random seed for noise generation.",
+                    "max": 0xffffffffffffffff,
+                    "control_after_generate": True,
+                    "tooltip": "The random seed used for creating the noise.",
                 },
             ),
             "sigma_shift": (
