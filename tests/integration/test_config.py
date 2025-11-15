@@ -4,10 +4,11 @@ Unit tests for TripleKSampler configuration system.
 Tests the TOML configuration loading, file operations, and data validation.
 """
 
-import pytest
 import os
-import tempfile
 import shutil
+import tempfile
+
+import pytest
 
 
 class TestTomlHandling:
@@ -17,8 +18,8 @@ class TestTomlHandling:
         """Set up test fixtures."""
         # Create a temporary directory for test files
         self.test_dir = tempfile.mkdtemp()
-        self.config_path = os.path.join(self.test_dir, 'config.toml')
-        self.example_path = os.path.join(self.test_dir, 'config.example.toml')
+        self.config_path = os.path.join(self.test_dir, "config.toml")
+        self.example_path = os.path.join(self.test_dir, "config.example.toml")
 
     def teardown_method(self):
         """Clean up test fixtures."""
@@ -39,7 +40,7 @@ default_i2v = 0.95
 level = "DEBUG"
 """
 
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, "w") as f:
             f.write(config_content)
 
         # Test TOML loading directly using the implementation logic
@@ -52,7 +53,7 @@ level = "DEBUG"
                 pytest.skip("No TOML library available")
 
         # Test the actual file reading
-        with open(self.config_path, 'rb') as f:
+        with open(self.config_path, "rb") as f:
             config = tomllib.load(f)
 
         assert config["sampling"]["base_quality_threshold"] == 25
@@ -75,7 +76,7 @@ default_i2v = 0.900
 level = "INFO"
 """
 
-        with open(self.example_path, 'w') as f:
+        with open(self.example_path, "w") as f:
             f.write(template_content)
 
         # Test file copy operation
@@ -84,7 +85,7 @@ level = "INFO"
         # Verify the copy worked
         assert os.path.exists(self.config_path)
 
-        with open(self.config_path, 'r') as f:
+        with open(self.config_path) as f:
             copied_content = f.read()
 
         assert "base_quality_threshold = 20" in copied_content
@@ -96,19 +97,21 @@ level = "INFO"
         expected_defaults = {
             "sampling": {"base_quality_threshold": 20},
             "boundaries": {"default_t2v": 0.875, "default_i2v": 0.900},
-            "logging": {"level": "INFO"}
+            "logging": {"level": "INFO"},
         }
 
         # This is what the fallback should produce
-        for section, values in expected_defaults.items():
+        for _section, values in expected_defaults.items():
             assert isinstance(values, dict)
             for key, value in values.items():
                 assert isinstance(key, str)
                 # Check value types are reasonable
                 if key == "base_quality_threshold":
-                    assert isinstance(value, int) and value > 0
+                    assert isinstance(value, int)
+                    assert value > 0
                 elif key.startswith("default_"):
-                    assert isinstance(value, float) and 0 <= value <= 1
+                    assert isinstance(value, float)
+                    assert 0 <= value <= 1
                 elif key == "level":
                     assert value in ["DEBUG", "INFO", "WARNING", "ERROR"]
 
@@ -120,7 +123,7 @@ level = "INFO"
 base_quality_threshold = 30
 """
 
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, "w") as f:
             f.write(partial_config)
 
         try:
@@ -131,7 +134,7 @@ base_quality_threshold = 30
             except ImportError:
                 pytest.skip("No TOML library available")
 
-        with open(self.config_path, 'rb') as f:
+        with open(self.config_path, "rb") as f:
             config = tomllib.load(f)
 
         # Should only have the sampling section
@@ -149,7 +152,7 @@ base_quality_threshold = 20
 invalid syntax here
 """
 
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, "w") as f:
             f.write(invalid_config)
 
         try:
@@ -162,7 +165,7 @@ invalid syntax here
 
         # Should raise an exception for invalid TOML
         with pytest.raises(Exception):  # TOMLDecodeError or similar
-            with open(self.config_path, 'rb') as f:
+            with open(self.config_path, "rb") as f:
                 tomllib.load(f)
 
     def test_toml_library_availability(self):
@@ -171,10 +174,12 @@ invalid syntax here
         toml_available = False
         try:
             import tomllib
+
             toml_available = True
         except ImportError:
             try:
                 import tomli  # type: ignore
+
                 toml_available = True
             except ImportError:
                 pass
@@ -200,7 +205,7 @@ default_t2v = 0.8
 # level missing
 """
 
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, "w") as f:
             f.write(incomplete_config)
 
         try:
@@ -211,7 +216,7 @@ default_t2v = 0.8
             except ImportError:
                 pytest.skip("No TOML library available")
 
-        with open(self.config_path, 'rb') as f:
+        with open(self.config_path, "rb") as f:
             config = tomllib.load(f)
 
         # Should have sections but missing keys
@@ -241,7 +246,7 @@ default_i2v = 0.900
 level = 123
 """
 
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, "w") as f:
             f.write(wrong_types_config)
 
         try:
@@ -252,7 +257,7 @@ level = 123
             except ImportError:
                 pytest.skip("No TOML library available")
 
-        with open(self.config_path, 'rb') as f:
+        with open(self.config_path, "rb") as f:
             config = tomllib.load(f)
 
         # TOML will load the values as their literal types
@@ -277,10 +282,10 @@ class TestFileOperations:
         """Test basic file copy functionality."""
         # Create source file
         source_content = "test content"
-        source_path = os.path.join(self.test_dir, 'source.txt')
-        dest_path = os.path.join(self.test_dir, 'dest.txt')
+        source_path = os.path.join(self.test_dir, "source.txt")
+        dest_path = os.path.join(self.test_dir, "dest.txt")
 
-        with open(source_path, 'w') as f:
+        with open(source_path, "w") as f:
             f.write(source_content)
 
         # Test copy
@@ -288,18 +293,18 @@ class TestFileOperations:
 
         # Verify
         assert os.path.exists(dest_path)
-        with open(dest_path, 'r') as f:
+        with open(dest_path) as f:
             assert f.read() == source_content
 
     def test_file_existence_check(self):
         """Test file existence checking."""
         # File doesn't exist
-        non_existent = os.path.join(self.test_dir, 'does_not_exist.txt')
+        non_existent = os.path.join(self.test_dir, "does_not_exist.txt")
         assert not os.path.exists(non_existent)
 
         # Create file
-        test_file = os.path.join(self.test_dir, 'exists.txt')
-        with open(test_file, 'w') as f:
+        test_file = os.path.join(self.test_dir, "exists.txt")
+        with open(test_file, "w") as f:
             f.write("test")
 
         # File exists

@@ -41,8 +41,9 @@ app.registerExtension({
     },
 
     async nodeCreated(node) {
-        // Only apply to the advanced TripleKSampler node
-        if (node.comfyClass !== "TripleKSamplerWan22LightningAdvanced") {
+        // Only apply to the advanced TripleKSampler and TripleWVSampler nodes
+        if (node.comfyClass !== "TripleKSamplerWan22LightningAdvanced" &&
+            node.comfyClass !== "TripleWVSamplerAdvanced") {
             return;
         }
 
@@ -90,7 +91,10 @@ app.registerExtension({
                 showSwitchStep = true;
                 showSwitchBoundary = true;
             } else {
-                switch (strategy) {
+                // Strip "(refined)" suffix to get base strategy for matching
+                const baseStrategy = strategy.replace(" (refined)", "");
+
+                switch (baseStrategy) {
                     case "50% of steps":
                         showSwitchStep = false;
                         showSwitchBoundary = false;
@@ -336,10 +340,11 @@ app.registerExtension({
         // Listen for execution completion to reset dry_run parameters
         api.addEventListener("executed", () => {
             try {
-                // Reset dry_run to false for all TripleKSampler nodes after execution
+                // Reset dry_run to false for all TripleKSampler and TripleWVSampler nodes after execution
                 if (app.graph && app.graph._nodes) {
                     for (const node of app.graph._nodes) {
-                        if (node.comfyClass === "TripleKSamplerWan22LightningAdvanced") {
+                        if (node.comfyClass === "TripleKSamplerWan22LightningAdvanced" ||
+                            node.comfyClass === "TripleWVSamplerAdvanced") {
                             const dryRunWidget = findWidgetByName(node, "dry_run");
                             if (dryRunWidget && dryRunWidget.value === true) {
                                 dryRunWidget.value = false;
@@ -361,10 +366,11 @@ app.registerExtension({
         // Listen for execution interruption to reset dry_run parameters
         api.addEventListener("execution_interrupted", () => {
             try {
-                // Reset dry_run to false for all TripleKSampler nodes after interruption
+                // Reset dry_run to false for all TripleKSampler and TripleWVSampler nodes after interruption
                 if (app.graph && app.graph._nodes) {
                     for (const node of app.graph._nodes) {
-                        if (node.comfyClass === "TripleKSamplerWan22LightningAdvanced") {
+                        if (node.comfyClass === "TripleKSamplerWan22LightningAdvanced" ||
+                            node.comfyClass === "TripleWVSamplerAdvanced") {
                             const dryRunWidget = findWidgetByName(node, "dry_run");
                             if (dryRunWidget && dryRunWidget.value === true) {
                                 dryRunWidget.value = false;

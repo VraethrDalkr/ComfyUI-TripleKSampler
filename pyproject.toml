@@ -1,6 +1,6 @@
 [project]
 name = "tripleksampler"
-version = "0.9.3"
+version = "0.10.4"
 description = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -18,8 +18,9 @@ Repository = "https://github.com/VraethrDalkr/ComfyUI-TripleKSampler"
 PublisherId = "vraethrdalkr"
 DisplayName = "ComfyUI-TripleKSampler"
 
+# Note: Pyright configuration (takes precedence over IDE settings)
 [tool.pyright]
-include = ["nodes.py", "__init__.py"]
+include = ["ksampler_nodes.py", "wvsampler_nodes.py", "__init__.py", "triple_ksampler/**/*.py"]
 exclude = ["tests/**"]
 reportMissingImports = false
 reportAttributeAccessIssue = false
@@ -27,3 +28,44 @@ reportUnknownMemberType = false
 reportUnknownVariableType = false
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
+
+# Ruff configuration - Modern linter and formatter (replaces flake8, isort, black)
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+exclude = [
+    ".venv",
+    "__pycache__",
+    "*.pyc",
+    "example_workflows",
+    ".git",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".pytest_cache",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "PT"]
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+    "E402",  # Module level import not at top (intentional in nodes_wanvideo.py after WanVideo check)
+    "N803",  # Argument name should be lowercase (allow single-letter caps for dimensions)
+    "N806",  # Variable in function should be lowercase (domain-specific conventions)
+    "N802",  # Function name should be lowercase (INPUT_TYPES is ComfyUI convention)
+    "N812",  # Lowercase imported as non-lowercase (F is PyTorch convention)
+    "N999",  # Invalid module name (package name uses hyphens, required by ComfyUI)
+    "E731",  # Lambda assignment (acceptable in this codebase)
+    "UP031", # Use format specifiers instead of percent format (legacy % formatting acceptable)
+    "PT011", # pytest.raises too broad (acceptable for this project's test style)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+    "F401",  # Unused imports (false positives - imports used to check availability)
+    "B017",  # Assert raises Exception (acceptable in test code for broad exception checks)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

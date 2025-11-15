@@ -2,11 +2,157 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.9.3] - 2025-11-14
+## [Unreleased]
+
+## [0.10.4] - 2025-11-14
+
 ### Changed
-- Seed parameter now includes `control_after_generate` attribute to match core KSampler nodes exactly
-- Addresses issue #10: potential caching and seed control widget issues
-- Seed parameter definition now identical to ComfyUI's KSampler for better compatibility
+- **Debug logging improvements in Advanced nodes**
+  - Removed redundant "Models:" line from TripleWVSampler debug output (always shows same model types)
+  - Removed redundant "Loaded config defaults" line (base_quality_threshold already shown in parameters)
+  - Added dry_run status to debug output for better visibility
+  - Cleaner, more concise debug logging focusing on relevant information
+
+## [0.10.3] - 2025-11-14
+
+### Changed
+- **Comprehensive documentation updates**
+  - Updated README.md with TripleWVSampler node descriptions and refined strategy documentation
+  - Updated wiki: Installation Guide, Parameter Reference, Model Switching Strategies, Advanced Features, Troubleshooting, Development Guide
+  - Added WanVideoWrapper integration documentation
+  - Clarified refined strategies as theoretical optimization (may not produce perceptible differences in most workflows)
+  - Improved terminology consistency throughout documentation
+
+### Fixed
+- **Code documentation consistency**
+  - Updated module docstrings to reflect current strategy counts (Simple: 5 strategies, Advanced: 8 strategies)
+  - Fixed test file docstrings for new module structure (shared/ modules)
+  - Updated inline comments to match refactored architecture
+
+## [0.10.2] - 2025-11-14
+
+### Fixed
+- **Critical WanVideo registration bug breaking sample passing between stages (issue aec0e66)**
+  - Root cause: Import-time verification in wvsampler_nodes.py (commit 2e51d5e) broke WanVideo initialization order
+  - Symptom: Memory usage dropped from ~1.8GB (correct chained samples) to ~0.1GB (broken - fresh noise generated each stage)
+  - Solution: Filesystem-gated registration in __init__.py with case-insensitive directory search
+  - No import-time verification calls that trigger premature initialization
+  - Evidence of fix: Stage 2 memory 1.235 GB ✓ (was 0.063 GB), Stage 3 memory 1.824 GB ✓ (was 0.079 GB)
+  - Quality restored to baseline (was degraded)
+- **Unit test isolation improved with structured model mocks**
+  - All unit tests now use mock_model_factory fixture instead of bare MagicMock objects
+  - Provides proper model structure (model.model.model_config) expected by ModelSamplingSD3
+  - Reduces test pollution failures from 28 to 26 tests
+  - All 204 unit tests pass when run separately, all 110 integration/regression tests pass
+
+## [0.10.1] - 2025-11-11
+
+### Added
+- **Automatic sigma_shift refinement for boundary-based strategies (strategy-based activation)**
+  - Adaptive bidirectional search algorithm starting from user's initial shift value (~20-50x faster than zero-start)
+  - Perfect alignment between switch step and target boundary sigma
+  - Supports all node variants: TripleKSampler, TripleKSamplerAdvanced, TripleWVSampler, TripleWVSamplerAdvanced
+  - Works with both ComfyUI samplers (KSampler nodes) and WanVideo schedulers (WVSampler nodes)
+  - Algorithm inspired by ComfyUI-WanMoEScheduler's iterative search approach (MIT License)
+  - **New refined strategy variants** for better discoverability:
+    - Advanced nodes: 8 strategies (add "T2V boundary (refined)", "I2V boundary (refined)", "Manual boundary (refined)")
+    - Simple nodes: 5 strategies (add "T2V boundary (refined)", "I2V boundary (refined)")
+    - Strategy utility nodes: Updated to match (SwitchStrategySimple: 5, SwitchStrategyAdvanced: 8)
+    - Refined strategies auto-activate refinement (no config flag needed)
+    - Toast notifications include refined shift in compact format: `(σ-shift: 5.00→6.94)`
+  - Configuration options in `config.example.toml`:
+    - `search_interval = 0.01` (precision control, smaller = more precise)
+    - `tolerance = 0.001` (sigma matching threshold)
+  - Info logging shows refinement: `"Refined sigma_shift: 5.0 → 6.94 for perfect alignment at step 4"`
+  - Dry-run mode displays refinement in toast notification
+
+### Changed
+- **Sigma shift refinement activation changed from config-based to strategy-based**
+  - Removed `enabled = false` flag from config.example.toml (no longer needed)
+  - Refinement now activates automatically when refined strategy variant is selected
+  - Better UX: refinement options visible in dropdown, per-node control, no hidden config flags
+  - 100% backward compatible: refined strategies added at END of dropdown lists (existing workflow JSON indices unchanged)
+- **Refined sigma shift display improved in toast notifications**
+  - Refinement info now appears on separate indented line for better readability
+  - Changed wording from "σ-shift: X→Y" to "σ-shift refined: X → Y" (clearer, better spacing)
+- **Sigma shift refinement algorithm simplified and improved**
+  - Removed user-facing config parameters (`search_interval`, `tolerance`) from config.example.toml
+  - Algorithm now always finds the actual closest sigma match (removed premature tolerance early-exit checks)
+  - Search interval hardcoded to optimal value (0.01 sigma units per iteration)
+  - Configuration simplified: only essential user-facing settings remain in config file
+
+### Changed
+- **Improved WanVideo wrapper UX when ComfyUI-WanVideoWrapper not installed**
+  - Reduced 6 repetitive warning messages to single clear INFO message at startup
+  - Message now includes installation URL: `https://github.com/kijai/ComfyUI-WanVideoWrapper`
+  - TripleWVSampler nodes only appear in UI when dependency is actually installed
+  - Node tooltips simplified (dependency mention redundant when nodes visible)
+- **Added consistent parameter tooltips to TripleWVSampler nodes**
+  - Added `seed` and `sigma_shift` tooltips matching TripleKSampler conventions
+  - Ensures consistent UX across all node variants
+
+### Fixed
+- **WVSampler strategy matching for refined variants**
+  - Fixed TripleWVSampler nodes falling back to "50% of steps (fallback)" when using refined strategies
+  - Strategy checking now correctly strips "(refined)" suffix before matching against base strategies
+  - Affects: TripleWVSampler (Advanced) and TripleWVSamplerAdvanced nodes
+- **Dynamic UI parameter visibility for refined strategies**
+  - Fixed JavaScript UI not hiding/showing optional parameters correctly for refined strategy variants
+  - Refined strategies now behave identically to their non-refined counterparts for parameter visibility
+  - Example: "T2V boundary (refined)" now hides both switch_step and switch_boundary like "T2V boundary"
+- **Fixed WVSampler parameter passing after conditional registration refactor**
+  - Added `batched_cfg` and `rope_function` to `sample()` method signatures in both advanced.py and simple.py
+  - Parameters were in required INPUT_TYPES but missing from method signatures after fallback removal
+  - Ensures proper parameter flow: ComfyUI → sample() → WanVideoSampler.process()
+
+## [0.10.0-dev] - 2025-11-10
+
+### Changed
+- **Symmetric architecture refactoring: Unified TripleKSampler and TripleWVSampler structure**
+  - Renamed module hierarchy for clarity and consistency:
+    - `triple_ksampler/core/` → `triple_ksampler/shared/` (truly shared utilities)
+    - `triple_ksampler/nodes/` → `triple_ksampler/ksampler/` (TripleKSampler-specific)
+    - Created `triple_ksampler/wvsampler/` for TripleWVSampler nodes
+  - Extracted WanVideo wrapper into symmetric module structure:
+    - `wvsampler/base.py` (~840 lines) - TripleWVSamplerAdvancedAlt
+    - `wvsampler/advanced.py` (~30 lines) - Dynamic UI variant
+    - `wvsampler/simple.py` (~280 lines) - Simplified interface
+    - `wvsampler/utils.py` (~85 lines) - WanVideo lazy loader
+  - Renamed root entry point files:
+    - `nodes.py` → `ksampler_nodes.py` (TripleKSampler primary entry)
+    - `nodes_wanvideo.py` → `wvsampler_nodes.py` (TripleWVSampler primary entry)
+  - Both node types now follow identical structural patterns:
+    - Shared utilities in `triple_ksampler/shared/`
+    - Type-specific nodes in `ksampler/` and `wvsampler/`
+    - Symmetric file organization (base.py, advanced.py, simple.py)
+  - **INTERNAL RESTRUCTURING ONLY**: Zero breaking changes for users
+    - ComfyUI NODE_CLASS_MAPPINGS keys unchanged
+    - All node interfaces and behavior preserved
+    - All 258 tests passing
+
+- **Major internal refactoring: Improved code organization and maintainability (Phase 1-3)**
+  - Reorganized node classes into focused modules (`triple_ksampler/ksampler/` package)
+    - `base.py` (389 lines) - TripleKSamplerBase with core algorithm
+    - `advanced.py` (557 lines) - Advanced node variants
+    - `simple.py` (132 lines) - Simplified node
+    - `strategy_nodes.py` (111 lines) - Strategy utility nodes
+  - Extracted core logic to reusable modules (`triple_ksampler/shared/` package)
+    - Created 7 focused modules: strategies, alignment, validation, config, logging, models, notifications
+    - Added 156 comprehensive unit tests (100% coverage on critical functions)
+  - Reduced file sizes significantly:
+    - `ksampler_nodes.py`: 1168 → 114 lines (90% reduction, primary entry point)
+    - `wvsampler_nodes.py`: 1327 → 110 lines (91% reduction, primary entry point)
+  - Eliminated ~407 lines of code duplication (370 in nodes.py, 37 in nodes_wanvideo.py)
+  - Improved SOLID compliance: Extracted 7/11 responsibilities from TripleKSamplerBase
+  - Improved DRY compliance: 9/10 duplication items resolved
+
+### Internal
+- Symmetric architecture: Both node types (KSampler/WVSampler) follow identical patterns
+- Clean naming: `shared/`, `ksampler/`, `wvsampler/` clearly indicate purpose
+- Modernized test imports: Package imports instead of importlib patterns
+- Each module under 400 lines (except wvsampler/base.py: ~840, advanced.py: 557 for multiple classes)
+- All modules fully typed with modern Python 3.9+ syntax (`X | None`)
+- Comprehensive docstrings on all public functions and classes
 
 ## [0.9.2] - 2025-10-15
 ### Added

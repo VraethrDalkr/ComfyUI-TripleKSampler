@@ -4,56 +4,26 @@ Integration tests for TripleKSampler end-to-end functionality.
 Tests complete workflow simulations, model patching, and stage execution flow.
 """
 
-import pytest
-import sys
 import os
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
 import torch
-from unittest.mock import MagicMock, patch, call
 
 # Import assertion helper
-from conftest import TripleKSamplerAssertions
+# Import from conftest (classes are loaded there)
+from conftest import COMFYUI_AVAILABLE, TripleKSampler, TripleKSamplerAdvanced
 
-# Add parent directory to path to import the module
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Check if ComfyUI dependencies are available
-COMFYUI_AVAILABLE = False
+# Import comfy for exception types
 try:
-    import importlib.util
-
-    # Add ComfyUI root to path
-    comfyui_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
-    sys.path.insert(0, comfyui_root)
-
-    # Test ComfyUI import first
-    import comfy.model_sampling
-    import comfy.samplers
-
-    # Load the main module directly
-    project_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    main_module_path = os.path.join(project_path, 'nodes.py')
-    spec = importlib.util.spec_from_file_location('nodes', main_module_path)
-    if spec and spec.loader:
-        module = importlib.util.module_from_spec(spec)
-        sys.modules['nodes'] = module
-        spec.loader.exec_module(module)
-
-        # Get the classes
-        TripleKSamplerAdvanced = module.TripleKSamplerAdvanced
-        TripleKSampler = module.TripleKSampler
-    else:
-        raise ImportError("Could not load main module")
-    COMFYUI_AVAILABLE = True
-except Exception as e:
-    # ComfyUI dependencies not available - tests will be skipped
-    pass
+    import comfy.model_management
+except ImportError:
+    comfy = None
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestWorkflowSimulations:
     """Test complete workflow simulations."""
 
@@ -64,17 +34,24 @@ class TestWorkflowSimulations:
 
         # Create comprehensive model mocks
         self.mock_base_high = MagicMock()
-        self.mock_base_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.mock_base_high.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
         self.mock_base_high.clone.return_value = MagicMock()
 
         self.mock_lightning_high = MagicMock()
-        self.mock_lightning_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.mock_lightning_high.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
         self.mock_lightning_high.clone.return_value = MagicMock()
 
         # Add proper mock timestep functionality for boundary calculations
         mock_sampling_instance = MagicMock()
+
         def mock_timestep(sigma):
-            sigma_val = float(sigma) if not hasattr(sigma, 'item') else float(sigma)
+            sigma_val = float(sigma) if not hasattr(sigma, "item") else float(sigma)
             # Return timesteps that work for both T2V (0.875) and I2V (0.900) boundaries
             if sigma_val >= 2.5:
                 return 950.0  # Above both boundaries (0.95 > 0.900 > 0.875)
@@ -85,7 +62,10 @@ class TestWorkflowSimulations:
         self.mock_lightning_high.get_model_object.return_value = mock_sampling_instance
 
         self.mock_lightning_low = MagicMock()
-        self.mock_lightning_low.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.mock_lightning_low.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
         self.mock_lightning_low.clone.return_value = MagicMock()
 
         self.mock_positive = MagicMock()
@@ -95,6 +75,7 @@ class TestWorkflowSimulations:
     def test_t2v_workflow_simulation(self):
         """Test complete T2V workflow simulation."""
         from unittest.mock import patch
+
         import torch
 
         params = {
@@ -119,22 +100,25 @@ class TestWorkflowSimulations:
             "switch_strategy": "T2V boundary",  # Typical T2V workflow
             "switch_boundary": 0.875,
             "switch_step": -1,
-            "dry_run": True  # Safe integration testing
+            "dry_run": True,  # Safe integration testing
         }
 
-        # Mock the sigma calculation and model patcher for boundary testing
+        # Mock the sigma calculation for boundary testing
         mock_sigmas = torch.tensor([10.0, 5.0, 2.5, 1.25, 0.625, 0.312, 0.156, 0.078])
-        mock_patcher = MagicMock()
-        mock_patcher.patch.side_effect = [
-            (self.mock_base_high, None),
-            (self.mock_lightning_high, None),
-            (self.mock_lightning_low, None)
-        ]
 
-        with patch('comfy.samplers.calculate_sigmas', return_value=mock_sigmas), \
-             patch.object(self.advanced_node, '_get_model_patcher', return_value=mock_patcher):
+        with (
+            patch("comfy.samplers.calculate_sigmas", return_value=mock_sigmas),
+            patch.object(
+                self.advanced_node,
+                "_patch_models_for_sampling",
+                return_value=(
+                    self.mock_base_high,
+                    self.mock_lightning_high,
+                    self.mock_lightning_low,
+                ),
+            ),
+        ):
             with pytest.raises(comfy.model_management.InterruptProcessingException):
-
                 self.advanced_node.sample(**params)
 
         # Note: In dry run mode, models are not actually cloned, so we don't verify clone calls
@@ -142,6 +126,7 @@ class TestWorkflowSimulations:
     def test_i2v_workflow_simulation(self):
         """Test complete I2V workflow simulation."""
         from unittest.mock import patch
+
         import torch
 
         params = {
@@ -166,22 +151,25 @@ class TestWorkflowSimulations:
             "switch_strategy": "I2V boundary",  # Typical I2V workflow
             "switch_boundary": 0.900,
             "switch_step": -1,
-            "dry_run": True
+            "dry_run": True,
         }
 
-        # Mock the sigma calculation and model patcher for boundary testing
+        # Mock the sigma calculation for boundary testing
         mock_sigmas = torch.tensor([10.0, 5.0, 2.5, 1.25, 0.625, 0.312, 0.156, 0.078])
-        mock_patcher = MagicMock()
-        mock_patcher.patch.side_effect = [
-            (self.mock_base_high, None),
-            (self.mock_lightning_high, None),
-            (self.mock_lightning_low, None)
-        ]
 
-        with patch('comfy.samplers.calculate_sigmas', return_value=mock_sigmas), \
-             patch.object(self.advanced_node, '_get_model_patcher', return_value=mock_patcher):
+        with (
+            patch("comfy.samplers.calculate_sigmas", return_value=mock_sigmas),
+            patch.object(
+                self.advanced_node,
+                "_patch_models_for_sampling",
+                return_value=(
+                    self.mock_base_high,
+                    self.mock_lightning_high,
+                    self.mock_lightning_low,
+                ),
+            ),
+        ):
             with pytest.raises(comfy.model_management.InterruptProcessingException):
-
                 self.advanced_node.sample(**params)
 
     def test_lightning_only_workflow(self):
@@ -195,10 +183,10 @@ class TestWorkflowSimulations:
             "latent_image": self.mock_latent,
             "seed": 456,
             "sigma_shift": 2.0,
-            "base_steps": 0,        # No base steps
+            "base_steps": 0,  # No base steps
             "base_quality_threshold": -1,
             "base_cfg": 3.5,
-            "lightning_start": 0,   # Lightning-only mode
+            "lightning_start": 0,  # Lightning-only mode
             "lightning_steps": 6,
             "lightning_cfg": 1.0,
             "base_sampler": "euler",
@@ -208,12 +196,10 @@ class TestWorkflowSimulations:
             "switch_strategy": "50% of steps",
             "switch_boundary": 0.875,
             "switch_step": -1,
-            "dry_run": True
+            "dry_run": True,
         }
 
         with pytest.raises(comfy.model_management.InterruptProcessingException):
-
-
             self.advanced_node.sample(**params)
 
     def test_simple_node_workflow(self):
@@ -235,7 +221,7 @@ class TestWorkflowSimulations:
             "lightning_cfg": 1.0,  # Required but ignored
             "sampler_name": "euler",
             "scheduler": "simple",
-            "switch_strategy": "50% of steps"
+            "switch_strategy": "50% of steps",
         }
 
         # Use dry run mode instead of mocking core sampling logic
@@ -244,10 +230,7 @@ class TestWorkflowSimulations:
             self.simple_node.sample(**params)
 
 
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestModelPatching:
     """Test model patching and cloning behavior."""
 
@@ -257,19 +240,25 @@ class TestModelPatching:
 
         # Create detailed model mocks
         self.original_base = MagicMock()
-        self.original_base.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.original_base.model.model_config.sampling_settings = {"shift": 1.0, "multiplier": 1000}
 
         self.cloned_base = MagicMock()
         self.original_base.clone.return_value = self.cloned_base
 
         self.original_lightning_high = MagicMock()
-        self.original_lightning_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.original_lightning_high.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
 
         self.cloned_lightning_high = MagicMock()
         self.original_lightning_high.clone.return_value = self.cloned_lightning_high
 
         self.original_lightning_low = MagicMock()
-        self.original_lightning_low.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.original_lightning_low.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
 
         self.cloned_lightning_low = MagicMock()
         self.original_lightning_low.clone.return_value = self.cloned_lightning_low
@@ -300,12 +289,10 @@ class TestModelPatching:
             "switch_strategy": "50% of steps",
             "switch_boundary": 0.875,
             "switch_step": -1,
-            "dry_run": True
+            "dry_run": True,
         }
 
         with pytest.raises(comfy.model_management.InterruptProcessingException):
-
-
             self.advanced_node.sample(**params)
 
         # Verify all models were cloned
@@ -337,31 +324,22 @@ class TestModelPatching:
             "switch_strategy": "50% of steps",
             "switch_boundary": 0.875,
             "switch_step": -1,
-            "dry_run": False
+            "dry_run": False,
         }
 
         # Use dry run mode and mock model patcher to test sigma shift application
         params["dry_run"] = True
 
-        with patch.object(self.advanced_node, '_get_model_patcher') as mock_get_patcher:
-            # Mock the patcher to return the expected models
-            mock_patcher = MagicMock()
-            mock_patcher.patch.side_effect = [
-                (self.cloned_base, None),
-                (self.cloned_lightning_high, None),
-                (self.cloned_lightning_low, None)
-            ]
-            mock_get_patcher.return_value = mock_patcher
-
+        with patch.object(
+            self.advanced_node,
+            "_patch_models_for_sampling",
+            return_value=(self.cloned_base, self.cloned_lightning_high, self.cloned_lightning_low),
+        ) as mock_patch_models:
             with pytest.raises(comfy.model_management.InterruptProcessingException):
-
-
                 self.advanced_node.sample(**params)
 
-            # Verify model patcher was called for sigma shift application
-            mock_get_patcher.assert_called_once()
-            # Verify patching was called for each model
-            assert mock_patcher.patch.call_count == 3
+            # Verify model patching was called for sigma shift application
+            mock_patch_models.assert_called_once()
 
     def test_no_original_model_mutation(self):
         """Test that original models are not mutated."""
@@ -392,32 +370,40 @@ class TestModelPatching:
             "switch_strategy": "50% of steps",
             "switch_boundary": 0.875,
             "switch_step": -1,
-            "dry_run": True
+            "dry_run": True,
         }
 
         # dry_run now raises InterruptProcessingException, but we can still check mocks after
         import comfy.model_management
+
         with pytest.raises(comfy.model_management.InterruptProcessingException):
             self.advanced_node.sample(**params)
 
         # Verify only clone() was called on original models
-        new_base_calls = [call for call in self.original_base.method_calls if call not in original_base_calls]
-        new_lightning_high_calls = [call for call in self.original_lightning_high.method_calls if call not in original_lightning_high_calls]
-        new_lightning_low_calls = [call for call in self.original_lightning_low.method_calls if call not in original_lightning_low_calls]
+        new_base_calls = [
+            call for call in self.original_base.method_calls if call not in original_base_calls
+        ]
+        new_lightning_high_calls = [
+            call
+            for call in self.original_lightning_high.method_calls
+            if call not in original_lightning_high_calls
+        ]
+        new_lightning_low_calls = [
+            call
+            for call in self.original_lightning_low.method_calls
+            if call not in original_lightning_low_calls
+        ]
 
         # Should only have clone() calls
         assert len(new_base_calls) == 1
-        assert new_base_calls[0][0] == 'clone'
+        assert new_base_calls[0][0] == "clone"
         assert len(new_lightning_high_calls) == 1
-        assert new_lightning_high_calls[0][0] == 'clone'
+        assert new_lightning_high_calls[0][0] == "clone"
         assert len(new_lightning_low_calls) == 1
-        assert new_lightning_low_calls[0][0] == 'clone'
+        assert new_lightning_low_calls[0][0] == "clone"
 
 
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestStageExecutionFlow:
     """Test stage execution flow and progression."""
 
@@ -427,15 +413,24 @@ class TestStageExecutionFlow:
 
         # Create model mocks
         self.mock_base_high = MagicMock()
-        self.mock_base_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.mock_base_high.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
         self.mock_base_high.clone.return_value = MagicMock()
 
         self.mock_lightning_high = MagicMock()
-        self.mock_lightning_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.mock_lightning_high.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
         self.mock_lightning_high.clone.return_value = MagicMock()
 
         self.mock_lightning_low = MagicMock()
-        self.mock_lightning_low.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.mock_lightning_low.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
         self.mock_lightning_low.clone.return_value = MagicMock()
 
         self.mock_latent = {"samples": torch.randn(1, 4, 64, 64)}
@@ -464,11 +459,12 @@ class TestStageExecutionFlow:
             "switch_strategy": "50% of steps",
             "switch_boundary": 0.875,
             "switch_step": -1,
-            "dry_run": True
+            "dry_run": True,
         }
 
         # dry_run now raises InterruptProcessingException
         import comfy.model_management
+
         with pytest.raises(comfy.model_management.InterruptProcessingException):
             self.advanced_node.sample(**params)
 
@@ -497,11 +493,12 @@ class TestStageExecutionFlow:
             "switch_strategy": "50% of steps",
             "switch_boundary": 0.875,
             "switch_step": -1,
-            "dry_run": True
+            "dry_run": True,
         }
 
         # dry_run now raises InterruptProcessingException
         import comfy.model_management
+
         with pytest.raises(comfy.model_management.InterruptProcessingException):
             self.advanced_node.sample(**params)
 
@@ -530,11 +527,12 @@ class TestStageExecutionFlow:
             "switch_strategy": "Manual switch step",
             "switch_boundary": 0.875,
             "switch_step": 4,
-            "dry_run": True
+            "dry_run": True,
         }
 
         # dry_run now raises InterruptProcessingException
         import comfy.model_management
+
         with pytest.raises(comfy.model_management.InterruptProcessingException):
             self.advanced_node.sample(**params)
 
@@ -549,7 +547,7 @@ class TestStageExecutionFlow:
             "latent_image": self.mock_latent,
             "seed": 42,
             "sigma_shift": 5.0,
-            "base_steps": -1,       # Auto-calculate
+            "base_steps": -1,  # Auto-calculate
             "base_quality_threshold": 20,
             "base_cfg": 3.5,
             "lightning_start": 2,
@@ -561,20 +559,18 @@ class TestStageExecutionFlow:
             "lightning_scheduler": "simple",
             "switch_strategy": "Manual switch step",
             "switch_boundary": 0.875,
-            "switch_step": -1,      # Auto-calculate
-            "dry_run": True
+            "switch_step": -1,  # Auto-calculate
+            "dry_run": True,
         }
 
         # dry_run now raises InterruptProcessingException
         import comfy.model_management
+
         with pytest.raises(comfy.model_management.InterruptProcessingException):
             self.advanced_node.sample(**params)
 
 
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestEndToEndValidation:
     """Test end-to-end validation and error handling."""
 
@@ -585,13 +581,22 @@ class TestEndToEndValidation:
 
         # Create model mocks
         self.mock_base_high = MagicMock()
-        self.mock_base_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.mock_base_high.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
 
         self.mock_lightning_high = MagicMock()
-        self.mock_lightning_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.mock_lightning_high.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
 
         self.mock_lightning_low = MagicMock()
-        self.mock_lightning_low.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        self.mock_lightning_low.model.model_config.sampling_settings = {
+            "shift": 1.0,
+            "multiplier": 1000,
+        }
 
         self.mock_latent = {"samples": torch.randn(1, 4, 64, 64)}
 
@@ -602,9 +607,17 @@ class TestEndToEndValidation:
             # lightning_steps too small
             {"lightning_steps": 1, "expected_error": "lightning_steps must be at least 2"},
             # lightning_start out of range
-            {"lightning_start": 10, "lightning_steps": 8, "expected_error": "lightning_start must be within"},
+            {
+                "lightning_start": 10,
+                "lightning_steps": 8,
+                "expected_error": "lightning_start must be within",
+            },
             # Inconsistent base_steps with lightning_start
-            {"base_steps": 0, "lightning_start": 1, "expected_error": "base_steps must be >= 1 when lightning_start > 0"},
+            {
+                "base_steps": 0,
+                "lightning_start": 1,
+                "expected_error": "base_steps must be >= 1 when lightning_start > 0",
+            },
         ]
 
         base_params = {
@@ -628,7 +641,7 @@ class TestEndToEndValidation:
             "lightning_scheduler": "simple",
             "switch_strategy": "50% of steps",
             "switch_boundary": 0.875,
-            "switch_step": -1
+            "switch_step": -1,
         }
 
         for invalid_config in invalid_configs:
@@ -670,7 +683,7 @@ class TestEndToEndValidation:
             "switch_strategy": "50% of steps",
             "switch_boundary": 0.875,
             "switch_step": -1,
-            "dry_run": True
+            "dry_run": True,
         }
 
         for edge_config in edge_case_configs:
@@ -679,7 +692,6 @@ class TestEndToEndValidation:
 
             # Should handle edge cases gracefully
             with pytest.raises(comfy.model_management.InterruptProcessingException):
-
                 self.advanced_node.sample(**test_params)
 
 

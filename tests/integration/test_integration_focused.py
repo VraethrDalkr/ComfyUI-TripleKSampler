@@ -5,14 +5,15 @@ These tests check our core logic integration with ComfyUI components that don't
 require the full server environment.
 """
 
-import pytest
-import sys
 import os
+import sys
+from unittest.mock import MagicMock
+
+import pytest
 import torch
-from unittest.mock import patch, MagicMock
 
 # Add ComfyUI root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
 # Test ComfyUI component imports
 COMFYUI_AVAILABLE = False
@@ -20,6 +21,7 @@ try:
     import comfy.model_sampling
     import comfy.samplers
     from comfy_extras.nodes_model_advanced import ModelSamplingSD3
+
     COMFYUI_AVAILABLE = True
 except Exception:
     pass
@@ -32,10 +34,7 @@ if COMFYUI_AVAILABLE:
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestCoreIntegration:
     """Test core integration points with ComfyUI without full server environment."""
 
@@ -48,21 +47,20 @@ class TestCoreIntegration:
         node = ModelSamplingSD3()
 
         # Verify it has the expected ComfyUI node interface
-        assert hasattr(node, 'patch')
-        assert hasattr(node, 'INPUT_TYPES')
-        assert hasattr(node, 'RETURN_TYPES')
+        assert hasattr(node, "patch")
+        assert hasattr(node, "INPUT_TYPES")
+        assert hasattr(node, "RETURN_TYPES")
 
         # Check INPUT_TYPES structure
         input_types = node.INPUT_TYPES()
-        assert 'required' in input_types
-        assert 'model' in input_types['required']
-        assert 'shift' in input_types['required']
+        assert "required" in input_types
+        assert "model" in input_types["required"]
+        assert "shift" in input_types["required"]
 
     def test_sigma_calculation_with_real_comfyui(self):
         """Test sigma calculations using real ComfyUI functions."""
         # Test with real ComfyUI sigma calculation
         steps = 8
-        sampler_name = "euler"
         scheduler = "simple"
 
         # Create a proper model sampling object that has sigmas
@@ -112,7 +110,7 @@ class TestCoreIntegration:
         # Create a mock model config
         class MockModelConfig:
             def __init__(self):
-                self.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+                self.sampling_settings = {"shift": 1.0, "multiplier": 1000}
 
         model_config = MockModelConfig()
         model_sampling = ModelSamplingAdvanced(model_config)
@@ -157,7 +155,6 @@ class TestCoreIntegration:
     def test_stage_range_calculation(self):
         """Test stage range calculations used in our logging."""
         # Test Stage 1 (base model)
-        base_steps = 3
         total_base_steps = 24
         lightning_start = 2
 
@@ -177,7 +174,7 @@ class TestCoreIntegration:
 
         stage2_start = lightning_start
         stage2_end = lightning_start + switch_step
-        stage2_total_percentage = ((lightning_steps / total_base_steps) * 100)
+        stage2_total_percentage = (lightning_steps / total_base_steps) * 100
         stage2_percentage_start = stage1_percentage_end
         stage2_percentage_end = stage2_percentage_start + (stage2_total_percentage * 0.5)
 
@@ -204,7 +201,6 @@ class TestCoreIntegration:
         """Test mathematical relationships in our calculations."""
         # Test base steps calculation consistency
         base_quality_threshold = 20
-        lightning_start = 2
         lightning_steps = 8
 
         # Our calculation logic (simplified)
@@ -234,10 +230,7 @@ class TestCoreIntegration:
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestRealComfyUIComponents:
     """Test real ComfyUI components we depend on."""
 
@@ -287,7 +280,7 @@ class TestRealComfyUIComponents:
 
             class MockModelConfig:
                 def __init__(self):
-                    self.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+                    self.sampling_settings = {"shift": 1.0, "multiplier": 1000}
 
             model_config = MockModelConfig()
             model_sampling = ModelSamplingAdvanced(model_config)
@@ -311,10 +304,7 @@ class TestRealComfyUIComponents:
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestAdvancedComfyUIIntegration:
     """Test advanced ComfyUI integration scenarios."""
 
@@ -326,11 +316,15 @@ class TestAdvancedComfyUIIntegration:
         # Create a minimal model with the right interface
         class MockModel:
             def __init__(self):
-                self.model = type('Model', (), {
-                    'model_config': type('Config', (), {
-                        'sampling_settings': {'shift': 1.0, 'multiplier': 1000}
-                    })()
-                })()
+                self.model = type(
+                    "Model",
+                    (),
+                    {
+                        "model_config": type(
+                            "Config", (), {"sampling_settings": {"shift": 1.0, "multiplier": 1000}}
+                        )()
+                    },
+                )()
                 self.object_patches = {}
 
             def clone(self):
@@ -354,11 +348,11 @@ class TestAdvancedComfyUIIntegration:
 
         # Verify the model was cloned and patched
         assert patched_model is not mock_model  # Should be a clone
-        assert 'model_sampling' in patched_model.object_patches
+        assert "model_sampling" in patched_model.object_patches
 
         # Verify the patched sampling object
-        patched_sampling = patched_model.object_patches['model_sampling']
-        assert hasattr(patched_sampling, 'set_parameters')
+        patched_sampling = patched_model.object_patches["model_sampling"]
+        assert hasattr(patched_sampling, "set_parameters")
 
     def test_comfyui_scheduler_integration(self):
         """Test integration with ComfyUI's scheduler system."""
@@ -400,7 +394,7 @@ class TestAdvancedComfyUIIntegration:
 
                 # Test that we can use these sigmas for boundary calculations
                 # (This simulates what our boundary strategy code does)
-                for i, sigma in enumerate(sigmas[:-1]):  # Skip last sigma
+                for _i, sigma in enumerate(sigmas[:-1]):  # Skip last sigma
                     timestep = model_sampling.timestep(sigma)
                     normalized_timestep = float(timestep) / 1000.0
 
@@ -444,7 +438,7 @@ class TestAdvancedComfyUIIntegration:
         """Test tensor operations that match ComfyUI's expectations."""
         # Test with realistic latent shapes
         latent_shapes = [
-            (1, 4, 8, 8),    # Tiny for testing
+            (1, 4, 8, 8),  # Tiny for testing
             (1, 4, 16, 16),  # Small
             (1, 4, 32, 32),  # Medium
             (1, 4, 64, 64),  # Standard
@@ -490,10 +484,7 @@ class TestAdvancedComfyUIIntegration:
 
 @pytest.mark.integration
 @pytest.mark.slow
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestPerformanceAndLargeLatents:
     """Test performance with large latent tensors and realistic scenarios."""
 
@@ -505,32 +496,31 @@ class TestPerformanceAndLargeLatents:
         import sys
 
         # Add ComfyUI root to path
-        comfyui_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+        comfyui_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
         sys.path.insert(0, comfyui_root)
 
-        # Load the main module
-        project_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        main_module_path = os.path.join(project_path, 'nodes.py')
-        spec = importlib.util.spec_from_file_location('nodes', main_module_path)
+        # Load the main module (go up 3 levels: integration/ -> tests/ -> project/)
+        project_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        main_module_path = os.path.join(project_path, "ksampler_nodes.py")
+        spec = importlib.util.spec_from_file_location("ksampler_nodes", main_module_path)
 
         if not spec or not spec.loader:
             pytest.skip("Could not load main module for performance testing")
 
         module = importlib.util.module_from_spec(spec)
-        sys.modules['nodes'] = module
+        sys.modules["nodes"] = module
         spec.loader.exec_module(module)
 
         advanced_node = module.TripleKSamplerAdvanced()
 
         # Test with realistic large latent sizes
         large_latent_shapes = [
-            (1, 4, 128, 128),   # 1K video resolution equivalent
-            (1, 4, 192, 128),   # Aspect ratio variation
-            (1, 16, 81, 144),   # HunyuanVideo format (16 channels, 81 frames, 144x256)
+            (1, 4, 128, 128),  # 1K video resolution equivalent
+            (1, 4, 192, 128),  # Aspect ratio variation
+            (1, 16, 81, 144),  # HunyuanVideo format (16 channels, 81 frames, 144x256)
         ]
 
         import time
-        from unittest.mock import MagicMock
 
         for shape in large_latent_shapes:
             # Create large latent tensor
@@ -538,13 +528,19 @@ class TestPerformanceAndLargeLatents:
 
             # Create mock models
             mock_base_high = MagicMock()
-            mock_base_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+            mock_base_high.model.model_config.sampling_settings = {"shift": 1.0, "multiplier": 1000}
 
             mock_lightning_high = MagicMock()
-            mock_lightning_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+            mock_lightning_high.model.model_config.sampling_settings = {
+                "shift": 1.0,
+                "multiplier": 1000,
+            }
 
             mock_lightning_low = MagicMock()
-            mock_lightning_low.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+            mock_lightning_low.model.model_config.sampling_settings = {
+                "shift": 1.0,
+                "multiplier": 1000,
+            }
 
             params = {
                 "base_high": mock_base_high,
@@ -568,7 +564,7 @@ class TestPerformanceAndLargeLatents:
                 "switch_strategy": "50% of steps",
                 "switch_boundary": 0.875,
                 "switch_step": -1,
-                "dry_run": True
+                "dry_run": True,
             }
 
             # Measure dry run performance - should raise InterruptProcessingException
@@ -581,7 +577,9 @@ class TestPerformanceAndLargeLatents:
 
             # Performance assertion - dry run should be fast even with large latents
             # Allow up to 100ms for dry run (very generous)
-            assert duration < 0.1, f"Dry run took {duration:.3f}s for shape {shape}, should be < 0.1s"
+            assert duration < 0.1, (
+                f"Dry run took {duration:.3f}s for shape {shape}, should be < 0.1s"
+            )
 
             print(f"✓ Large latent {shape} dry run completed in {duration:.3f}s")
 
@@ -593,19 +591,19 @@ class TestPerformanceAndLargeLatents:
         import sys
 
         # Add ComfyUI root to path
-        comfyui_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+        comfyui_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
         sys.path.insert(0, comfyui_root)
 
-        # Load the main module
-        project_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        main_module_path = os.path.join(project_path, 'nodes.py')
-        spec = importlib.util.spec_from_file_location('nodes', main_module_path)
+        # Load the main module (go up 3 levels: integration/ -> tests/ -> project/)
+        project_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        main_module_path = os.path.join(project_path, "ksampler_nodes.py")
+        spec = importlib.util.spec_from_file_location("ksampler_nodes", main_module_path)
 
         if not spec or not spec.loader:
             pytest.skip("Could not load main module for complexity testing")
 
         module = importlib.util.module_from_spec(spec)
-        sys.modules['nodes'] = module
+        sys.modules["nodes"] = module
         spec.loader.exec_module(module)
 
         advanced_node = module.TripleKSamplerAdvanced()
@@ -615,7 +613,6 @@ class TestPerformanceAndLargeLatents:
         durations = []
 
         import time
-        from unittest.mock import MagicMock
 
         for lightning_steps in step_counts:
             # Small latent for this test
@@ -623,13 +620,19 @@ class TestPerformanceAndLargeLatents:
 
             # Create mock models
             mock_base_high = MagicMock()
-            mock_base_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+            mock_base_high.model.model_config.sampling_settings = {"shift": 1.0, "multiplier": 1000}
 
             mock_lightning_high = MagicMock()
-            mock_lightning_high.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+            mock_lightning_high.model.model_config.sampling_settings = {
+                "shift": 1.0,
+                "multiplier": 1000,
+            }
 
             mock_lightning_low = MagicMock()
-            mock_lightning_low.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+            mock_lightning_low.model.model_config.sampling_settings = {
+                "shift": 1.0,
+                "multiplier": 1000,
+            }
 
             params = {
                 "base_high": mock_base_high,
@@ -653,12 +656,13 @@ class TestPerformanceAndLargeLatents:
                 "switch_strategy": "50% of steps",
                 "switch_boundary": 0.875,
                 "switch_step": -1,
-                "dry_run": True
+                "dry_run": True,
             }
 
             # Measure computation time - dry run should raise InterruptProcessingException
             start_time = time.time()
             import comfy.model_management
+
             with pytest.raises(comfy.model_management.InterruptProcessingException):
                 advanced_node.sample(**params)
             end_time = time.time()
@@ -676,7 +680,9 @@ class TestPerformanceAndLargeLatents:
         # Verify reasonable scaling - shouldn't grow exponentially
         if len(durations) >= 2:
             growth_factor = durations[-1] / durations[0]  # Largest vs smallest
-            assert growth_factor < 10, f"Duration growth factor {growth_factor:.2f}x suggests exponential complexity"
+            assert growth_factor < 10, (
+                f"Duration growth factor {growth_factor:.2f}x suggests exponential complexity"
+            )
 
 
 if __name__ == "__main__":

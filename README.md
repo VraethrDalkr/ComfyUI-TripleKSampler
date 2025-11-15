@@ -5,10 +5,11 @@ Triple-stage sampling nodes for Wan2.2 split models with Lightning LoRA integrat
 ## Features
 
 - **Triple-Stage Workflow** - Base denoising → Lightning high → Lightning low
-- **Three Node Variants** - Simple (smart defaults), Advanced (dynamic UI), Advanced Alt (static UI)
+- **Six Node Variants** - Simple/Advanced/Advanced Alt for both native KSampler and WanVideoWrapper workflows
 - **Intelligent Auto-Calculation** - Optimal parameter computation
 - **Model-Safe Cloning** - No mutation of original models
 - **Sigma Shift Integration** - Built-in ModelSamplingSD3 support
+- **Automatic Sigma Refinement** - Theoretical optimization for perfect boundary alignment (refined strategies)
 
 ## Quick Start
 
@@ -19,9 +20,14 @@ Triple-stage sampling nodes for Wan2.2 split models with Lightning LoRA integrat
    cd ComfyUI-TripleKSampler && pip install -r requirements.txt
    ```
 
-2. **Use** - Find nodes under `TripleKSampler/sampling` category after ComfyUI restart
+2. **Optional: WanVideoWrapper Integration** - Install [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper) to enable TripleWVSampler nodes
 
-3. **Configure** - Connect your Wan2.2 models and set basic parameters
+3. **Use** - Find nodes under `TripleKSampler` category after ComfyUI restart
+   - `TripleKSampler/sampling` - Native KSampler workflow nodes
+   - `TripleKSampler/wanvideo` - WanVideoWrapper integration nodes
+   - `TripleKSampler/utilities` - Switch Strategy utility nodes
+
+4. **Configure** - Connect your Wan2.2 models and set basic parameters
 
 ## Why Use TripleKSampler?
 
@@ -41,11 +47,14 @@ The example shown uses `lightning_start=2`, `lightning_steps=8` with the default
 
 | Node | Category | Best For | Key Features |
 |------|----------|----------|--------------|
-| **TripleKSampler (Simple)** | Sampling | Most users | Smart defaults, auto-calculation, streamlined interface |
-| **TripleKSampler (Advanced)** | Sampling | Power users | Full control, 5 switching strategies, dynamic UI, dry-run testing |
-| **TripleKSampler (Advanced Alt)** | Sampling | Power users | Full control, 5 switching strategies, static UI, dry-run testing - use if dynamic UI causes issues |
-| **Switch Strategy (Simple)** | Utilities | Simple node users | External strategy for TripleKSampler (Simple), 3 strategies |
-| **Switch Strategy (Advanced)** | Utilities | Advanced node users | External strategy for TripleKSampler (Advanced), 5 strategies |
+| **TripleKSampler (Simple)** | sampling | Most users | Smart defaults, auto-calculation, streamlined interface |
+| **TripleKSampler (Advanced)** | sampling | Power users | Full control, 8 switching strategies, dynamic UI, dry-run testing |
+| **TripleKSampler (Advanced Alt)** | sampling | Power users | Full control, 8 switching strategies, static UI, dry-run testing - use if dynamic UI causes issues |
+| **TripleWVSampler (Simple)** | wanvideo | WanVideoWrapper users | Smart defaults for TripleWVSampler workflows |
+| **TripleWVSampler (Advanced)** | wanvideo | WanVideoWrapper power users | Full control for TripleWVSampler workflows, dynamic UI, dry-run testing |
+| **TripleWVSampler (Advanced Alt)** | wanvideo | WanVideoWrapper power users | Full control for TripleWVSampler workflows, static UI, dry-run testing |
+| **Switch Strategy (Simple)** | utilities | Simple node users | External strategy control, 5 strategies |
+| **Switch Strategy (Advanced)** | utilities | Advanced node users | External strategy control, 8 strategies |
 
 ## Essential Parameters
 
@@ -77,11 +86,29 @@ Example workflows are included in the `example_workflows/` directory.
 - `i2v_simple.json` - Simple node with smart defaults
 - `i2v_advanced.json` - Advanced node with full parameter control
 
+**WanVideoWrapper Workflows** (requires [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper)):
+- `t2v_wanvideo_advanced.json` - Text-to-Video with TripleWVSampler Advanced
+- `i2v_wanvideo_advanced.json` - Image-to-Video with TripleWVSampler Advanced
+
 **Hybrid Workflow**: `hybrid_workflow.json` showcases the Switch Strategy utility nodes for external strategy control. Demonstrates using different switching strategies for T2V and I2V branches in a single workflow.
 - **Requires**: [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) custom nodes
 
 **Math Node Comparison**: `tripleksampler_vs_math.json` demonstrates how to replicate TripleKSampler (Simple) behavior using manual math node calculations. This workflow provides a side-by-side comparison to help understand the internal calculations and validate the node's behavior.
 - **Requires**: [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) and [ComfyUI-Custom-Scripts](https://github.com/pythongosssss/ComfyUI-Custom-Scripts)
+
+## Known Limitations
+
+### WanVideoWrapper Integration
+
+**ComfyUI-WanVideoWrapper** is explicitly a work-in-progress project that receives frequent updates and integrates new features regularly. TripleWVSampler nodes:
+
+- Cannot be comprehensively tested with all WanVideoWrapper features
+- Some advanced features may not behave correctly with cascaded sampling
+- Some features may conflict with Lightning LoRA workflows
+- Some features may require specific denoising schedules incompatible with triple-stage sampling
+- May break with WanVideoWrapper updates that change the sampler interface
+
+**Before reporting issues with TripleWVSampler nodes:** Always test with the original WanVideoSampler node first to confirm the issue is specific to TripleWVSampler and not an upstream WanVideoWrapper issue.
 
 ## Support
 

@@ -5,64 +5,42 @@ Provides reusable fixtures and test utilities to reduce code duplication
 and improve test maintainability.
 """
 
-import pytest
-import sys
 import os
-import torch
+import sys
 from unittest.mock import MagicMock
+
+import pytest
+import torch
 
 # Check if ComfyUI dependencies are available
 COMFYUI_AVAILABLE = False
 try:
-    import importlib.util
-
     # Add ComfyUI root to path FIRST (before project path)
-    comfyui_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+    comfyui_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
     sys.path.insert(0, comfyui_root)
 
-    # Test ComfyUI import first
-    import comfy.model_sampling
-    import comfy.samplers
-
-    # CRITICAL: Import ComfyUI's nodes module BEFORE loading our custom nodes.py
+    # CRITICAL: Import ComfyUI's nodes module BEFORE loading our package
     # This ensures nodes.KSamplerAdvanced is available when our code imports it
     import nodes as comfyui_nodes
 
-    # CRITICAL: Lock the nodes module in sys.modules to prevent our nodes.py from overwriting it
-    # This is necessary because when we exec_module our nodes.py, it will do "import nodes"
-    # and Python needs to find ComfyUI's nodes, not our file
-    assert 'nodes' in sys.modules, "ComfyUI nodes module must be in sys.modules"
-    assert hasattr(comfyui_nodes, 'KSamplerAdvanced'), "ComfyUI nodes must have KSamplerAdvanced"
+    assert "nodes" in sys.modules, "ComfyUI nodes module must be in sys.modules"
+    assert hasattr(comfyui_nodes, "KSamplerAdvanced"), "ComfyUI nodes must have KSamplerAdvanced"
 
-    # Load the main module directly with a unique name
-    # DO NOT add project path to sys.path - load directly via spec
+    # Add project to path for package imports
     project_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    main_module_path = os.path.join(project_path, 'nodes.py')
-    spec = importlib.util.spec_from_file_location('triple_ksampler_nodes', main_module_path)
-    if spec and spec.loader:
-        module = importlib.util.module_from_spec(spec)
-        sys.modules['triple_ksampler_nodes'] = module
+    if project_path not in sys.path:
+        sys.path.insert(0, project_path)
 
-        # CRITICAL: Pre-inject ComfyUI's nodes into the module's __dict__ BEFORE exec
-        # This prevents the "import nodes" statement from importing the wrong module
-        # The import statement will see nodes already in globals and use it
-        module.__dict__['nodes'] = comfyui_nodes
+    # Import directly from package (modern approach)
+    from triple_ksampler.ksampler import (
+        TripleKSampler,
+        TripleKSamplerAdvanced,
+        TripleKSamplerAdvancedAlt,
+        TripleKSamplerBase,
+    )
 
-        spec.loader.exec_module(module)
-
-        # Verify that the module got the correct nodes reference
-        assert hasattr(module.nodes, 'KSamplerAdvanced'), \
-            f"Module's nodes reference is wrong: {module.nodes}"
-
-        # Get the classes - make them available globally
-        TripleKSamplerBase = module.TripleKSamplerBase
-        TripleKSamplerAdvanced = module.TripleKSamplerAdvanced
-        TripleKSampler = module.TripleKSampler
-        TripleKSamplerAdvancedAlt = module.TripleKSamplerAdvancedAlt
-    else:
-        raise ImportError("Could not load main module")
     COMFYUI_AVAILABLE = True
-except Exception as e:
+except Exception:
     # ComfyUI dependencies not available - tests will be skipped
     pass
 
@@ -84,9 +62,10 @@ def comfyui_available():
 @pytest.fixture
 def mock_model_factory():
     """Factory fixture for creating consistent model mocks."""
+
     def _create_mock_model(name="test_model"):
         mock_model = MagicMock()
-        mock_model.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+        mock_model.model.model_config.sampling_settings = {"shift": 1.0, "multiplier": 1000}
         mock_model.clone.return_value = MagicMock()
         return mock_model
 
@@ -97,19 +76,16 @@ def mock_model_factory():
 def mock_models(mock_model_factory):
     """Fixture providing standard set of mock models."""
     return {
-        'base_high': mock_model_factory("base_high"),
-        'lightning_high': mock_model_factory("lightning_high"),
-        'lightning_low': mock_model_factory("lightning_low")
+        "base_high": mock_model_factory("base_high"),
+        "lightning_high": mock_model_factory("lightning_high"),
+        "lightning_low": mock_model_factory("lightning_low"),
     }
 
 
 @pytest.fixture
 def mock_conditioning():
     """Fixture providing mock conditioning objects."""
-    return {
-        'positive': MagicMock(),
-        'negative': MagicMock()
-    }
+    return {"positive": MagicMock(), "negative": MagicMock()}
 
 
 @pytest.fixture
@@ -122,11 +98,11 @@ def mock_latent():
 def standard_params(mock_models, mock_conditioning, mock_latent):
     """Fixture providing standard parameter set for testing."""
     return {
-        "base_high": mock_models['base_high'],
-        "lightning_high": mock_models['lightning_high'],
-        "lightning_low": mock_models['lightning_low'],
-        "positive": mock_conditioning['positive'],
-        "negative": mock_conditioning['negative'],
+        "base_high": mock_models["base_high"],
+        "lightning_high": mock_models["lightning_high"],
+        "lightning_low": mock_models["lightning_low"],
+        "positive": mock_conditioning["positive"],
+        "negative": mock_conditioning["negative"],
         "latent_image": mock_latent,
         "seed": 42,
         "sigma_shift": 5.0,
@@ -143,7 +119,7 @@ def standard_params(mock_models, mock_conditioning, mock_latent):
         "switch_strategy": "50% of steps",
         "dry_run": False,
         "switch_boundary": 0.875,
-        "switch_step": -1
+        "switch_step": -1,
     }
 
 
@@ -199,7 +175,7 @@ class TripleKSamplerAssertions:
     def assert_no_original_mutation(mock_models, allowed_calls=None):
         """Assert that original models were not mutated beyond allowed calls."""
         if allowed_calls is None:
-            allowed_calls = ['clone']
+            allowed_calls = ["clone"]
 
         for name, model in mock_models.items():
             actual_calls = [call[0] for call in model.method_calls]
@@ -235,14 +211,17 @@ class TripleKSamplerAssertions:
 
         # Check shape: should be (1, channels, 1, 8, 8) where channels matches original
         expected_shape = (1, original_samples.shape[1], 1, 8, 8)
-        assert result_samples.shape == expected_shape, \
+        assert result_samples.shape == expected_shape, (
             f"Expected minimal latent shape {expected_shape}, got {result_samples.shape}"
+        )
 
         # Check device and dtype match original
-        assert result_samples.device == original_samples.device, \
+        assert result_samples.device == original_samples.device, (
             f"Device mismatch: expected {original_samples.device}, got {result_samples.device}"
-        assert result_samples.dtype == original_samples.dtype, \
+        )
+        assert result_samples.dtype == original_samples.dtype, (
             f"Dtype mismatch: expected {original_samples.dtype}, got {result_samples.dtype}"
+        )
 
         # Verify it's actually zeros (as created by torch.zeros)
         assert torch.all(result_samples == 0), "Minimal latent should be all zeros"
@@ -255,44 +234,40 @@ def tks_assert():
 
 
 # Parametrized test data
-@pytest.fixture(params=[
-    {"lightning_steps": 4, "expected_midpoint": 2},
-    {"lightning_steps": 6, "expected_midpoint": 3},
-    {"lightning_steps": 8, "expected_midpoint": 4},
-    {"lightning_steps": 10, "expected_midpoint": 5},
-])
+@pytest.fixture(
+    params=[
+        {"lightning_steps": 4, "expected_midpoint": 2},
+        {"lightning_steps": 6, "expected_midpoint": 3},
+        {"lightning_steps": 8, "expected_midpoint": 4},
+        {"lightning_steps": 10, "expected_midpoint": 5},
+    ]
+)
 def midpoint_test_data(request):
     """Parametrized fixture for midpoint calculation tests."""
     return request.param
 
 
-@pytest.fixture(params=[
-    {"base_quality_threshold": 20, "lightning_start": 1, "lightning_steps": 8},
-    {"base_quality_threshold": 25, "lightning_start": 2, "lightning_steps": 6},
-    {"base_quality_threshold": 30, "lightning_start": 1, "lightning_steps": 12},
-])
+@pytest.fixture(
+    params=[
+        {"base_quality_threshold": 20, "lightning_start": 1, "lightning_steps": 8},
+        {"base_quality_threshold": 25, "lightning_start": 2, "lightning_steps": 6},
+        {"base_quality_threshold": 30, "lightning_start": 1, "lightning_steps": 12},
+    ]
+)
 def alignment_test_data(request):
     """Parametrized fixture for perfect alignment calculation tests."""
     return request.param
 
 
-@pytest.fixture(params=[
-    "50% of steps",
-    "T2V boundary",
-    "I2V boundary"
-])
+@pytest.fixture(params=["50% of steps", "T2V boundary", "I2V boundary"])
 def simple_strategies(request):
     """Parametrized fixture for Simple node strategies."""
     return request.param
 
 
-@pytest.fixture(params=[
-    "50% of steps",
-    "Manual switch step",
-    "T2V boundary",
-    "I2V boundary",
-    "Manual boundary"
-])
+@pytest.fixture(
+    params=["50% of steps", "Manual switch step", "T2V boundary", "I2V boundary", "Manual boundary"]
+)
 def advanced_strategies(request):
     """Parametrized fixture for Advanced node strategies."""
     return request.param
@@ -302,6 +277,7 @@ def advanced_strategies(request):
 @pytest.fixture
 def param_helpers():
     """Fixture providing test parameter helper functions."""
+
     class ParameterHelpers:
         @staticmethod
         def create_dry_run_params(base_params):
@@ -317,20 +293,14 @@ def param_helpers():
         def create_lightning_only_params(base_params):
             """Helper to create lightning-only parameters from base parameters."""
             params = base_params.copy()
-            params.update({
-                "base_steps": 0,
-                "lightning_start": 0
-            })
+            params.update({"base_steps": 0, "lightning_start": 0})
             return params
 
         @staticmethod
         def create_manual_strategy_params(base_params, switch_step=4):
             """Helper to create manual strategy parameters from base parameters."""
             params = base_params.copy()
-            params.update({
-                "switch_strategy": "Manual switch step",
-                "switch_step": switch_step
-            })
+            params.update({"switch_strategy": "Manual switch step", "switch_step": switch_step})
             return params
 
         @staticmethod
@@ -375,20 +345,14 @@ def create_dry_run_params(base_params):
 def create_lightning_only_params(base_params):
     """Helper to create lightning-only parameters from base parameters."""
     params = base_params.copy()
-    params.update({
-        "base_steps": 0,
-        "lightning_start": 0
-    })
+    params.update({"base_steps": 0, "lightning_start": 0})
     return params
 
 
 def create_manual_strategy_params(base_params, switch_step=4):
     """Helper to create manual strategy parameters from base parameters."""
     params = base_params.copy()
-    params.update({
-        "switch_strategy": "Manual switch step",
-        "switch_step": switch_step
-    })
+    params.update({"switch_strategy": "Manual switch step", "switch_step": switch_step})
     return params
 
 

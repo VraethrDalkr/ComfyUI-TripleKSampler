@@ -5,52 +5,19 @@ Tests the mathematical and calculation methods that are critical to the
 sampling algorithm but were previously untested.
 """
 
-import pytest
-import sys
-import os
 import math
+import os
+import sys
 from unittest.mock import MagicMock, patch
 
-# Add parent directory to path to import the module
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pytest
 
-# Check if ComfyUI dependencies are available
-COMFYUI_AVAILABLE = False
-try:
-    import importlib.util
-
-    # Add ComfyUI root to path
-    comfyui_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
-    sys.path.insert(0, comfyui_root)
-
-    # Test ComfyUI import first
-    import comfy.model_sampling
-
-    # Load the main module directly
-    project_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    main_module_path = os.path.join(project_path, 'nodes.py')
-    spec = importlib.util.spec_from_file_location('nodes', main_module_path)
-    if spec and spec.loader:
-        module = importlib.util.module_from_spec(spec)
-        sys.modules['nodes'] = module
-        spec.loader.exec_module(module)
-
-        # Get the classes
-        TripleKSamplerBase = module.TripleKSamplerBase
-        TripleKSamplerAdvanced = module.TripleKSamplerAdvanced
-    else:
-        raise ImportError("Could not load main module")
-    COMFYUI_AVAILABLE = True
-except Exception as e:
-    # ComfyUI dependencies not available - tests will be skipped
-    pass
+# Import from conftest (classes are loaded there)
+from conftest import COMFYUI_AVAILABLE, TripleKSamplerAdvanced, TripleKSamplerBase
 
 
 @pytest.mark.unit
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestCalculatePerfectAlignment:
     """Test the critical _calculate_perfect_alignment method."""
 
@@ -58,9 +25,7 @@ class TestCalculatePerfectAlignment:
         """Test simple case with lightning_start=1."""
         # Simple case: lightning_start=1, should use direct calculation
         base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
-            base_quality_threshold=20,
-            lightning_start=1,
-            lightning_steps=8
+            base_quality_threshold=20, lightning_start=1, lightning_steps=8
         )
 
         # Should use simple math: ceil(20/8) = 3
@@ -72,9 +37,7 @@ class TestCalculatePerfectAlignment:
         """Test simple case with different parameter values."""
         # Test with different values
         base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
-            base_quality_threshold=15,
-            lightning_start=1,
-            lightning_steps=6
+            base_quality_threshold=15, lightning_start=1, lightning_steps=6
         )
 
         # ceil(15/6) = 3
@@ -86,9 +49,7 @@ class TestCalculatePerfectAlignment:
         """Test complex case that finds perfect alignment."""
         # Complex case: lightning_start=2, should find mathematical solution
         base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
-            base_quality_threshold=20,
-            lightning_start=2,
-            lightning_steps=8
+            base_quality_threshold=20, lightning_start=2, lightning_steps=8
         )
 
         # Should find a solution where (total * lightning_start) % lightning_steps == 0
@@ -100,9 +61,7 @@ class TestCalculatePerfectAlignment:
     def test_complex_case_lightning_start_3(self):
         """Test complex case with lightning_start=3."""
         base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
-            base_quality_threshold=20,
-            lightning_start=3,
-            lightning_steps=8
+            base_quality_threshold=20, lightning_start=3, lightning_steps=8
         )
 
         # Should find mathematical solution
@@ -115,9 +74,7 @@ class TestCalculatePerfectAlignment:
         """Test fallback when no perfect alignment is found."""
         # Create a case where perfect alignment is unlikely in the search range
         base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
-            base_quality_threshold=100,
-            lightning_start=7,
-            lightning_steps=11
+            base_quality_threshold=100, lightning_start=7, lightning_steps=11
         )
 
         # May use fallback if no perfect alignment found in search range
@@ -127,24 +84,20 @@ class TestCalculatePerfectAlignment:
 
     def test_edge_case_lightning_start_0(self):
         """Test edge case with lightning_start=0."""
-        # Edge case: lightning_start=0 (lightning-only mode)
+        # Edge case: lightning_start=0 (lightning-only mode, skip base stage)
         base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
-            base_quality_threshold=20,
-            lightning_start=0,
-            lightning_steps=8
+            base_quality_threshold=20, lightning_start=0, lightning_steps=8
         )
 
-        # Should handle gracefully (not lightning_start=1, so goes to complex case)
-        assert method in ["mathematical_search", "fallback"]
-        assert base_steps >= 0
-        assert total_base_steps >= 0
+        # Special case returns immediately with simple_math
+        assert method == "simple_math"
+        assert base_steps == 0
+        assert total_base_steps == 0
 
     def test_large_values(self):
         """Test with larger parameter values."""
         base_steps, total_base_steps, method = TripleKSamplerBase._calculate_perfect_alignment(
-            base_quality_threshold=50,
-            lightning_start=1,
-            lightning_steps=16
+            base_quality_threshold=50, lightning_start=1, lightning_steps=16
         )
 
         # Simple case with larger values
@@ -154,10 +107,7 @@ class TestCalculatePerfectAlignment:
 
 
 @pytest.mark.unit
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestCalculatePercentage:
     """Test the _calculate_percentage helper method."""
 
@@ -208,10 +158,7 @@ class TestCalculatePercentage:
 
 
 @pytest.mark.unit
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestFormatStageRange:
     """Test the _format_stage_range method."""
 
@@ -256,10 +203,7 @@ class TestFormatStageRange:
 
 
 @pytest.mark.unit
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestComputeBoundarySwitchingStep:
     """Test the _compute_boundary_switching_step method."""
 
@@ -271,7 +215,7 @@ class TestComputeBoundarySwitchingStep:
         self.mock_sampling = MagicMock()
         self.mock_sampling.timestep.return_value = 1000.0  # Default return value
 
-    @patch('comfy.samplers.calculate_sigmas')
+    @patch("comfy.samplers.calculate_sigmas")
     def test_t2v_boundary(self, mock_calculate_sigmas):
         """Test T2V boundary (0.875) switching step calculation."""
         import torch
@@ -284,7 +228,7 @@ class TestComputeBoundarySwitchingStep:
         # Mock timestep conversion to simulate boundary crossing
         def mock_timestep(sigma):
             # Simulate timestep conversion where boundary 0.875 occurs around step 3-4
-            sigma_val = float(sigma.item()) if hasattr(sigma, 'item') else float(sigma)
+            sigma_val = float(sigma.item()) if hasattr(sigma, "item") else float(sigma)
             if sigma_val >= 2.5:
                 return 950.0  # Above boundary
             else:
@@ -300,7 +244,7 @@ class TestComputeBoundarySwitchingStep:
         assert isinstance(switching_step, int)
         assert 0 <= switching_step < 8
 
-    @patch('comfy.samplers.calculate_sigmas')
+    @patch("comfy.samplers.calculate_sigmas")
     def test_i2v_boundary(self, mock_calculate_sigmas):
         """Test I2V boundary (0.900) switching step calculation."""
         import torch
@@ -310,7 +254,7 @@ class TestComputeBoundarySwitchingStep:
 
         # Mock higher boundary (0.900)
         def mock_timestep(sigma):
-            sigma_val = float(sigma.item()) if hasattr(sigma, 'item') else float(sigma)
+            sigma_val = float(sigma.item()) if hasattr(sigma, "item") else float(sigma)
             if sigma_val >= 1.25:
                 return 950.0  # Above boundary
             else:
@@ -325,7 +269,7 @@ class TestComputeBoundarySwitchingStep:
         assert isinstance(switching_step, int)
         assert 0 <= switching_step < 8
 
-    @patch('comfy.samplers.calculate_sigmas')
+    @patch("comfy.samplers.calculate_sigmas")
     def test_custom_boundary(self, mock_calculate_sigmas):
         """Test custom boundary value."""
         import torch
@@ -335,7 +279,7 @@ class TestComputeBoundarySwitchingStep:
 
         # Test custom boundary of 0.5
         def mock_timestep(sigma):
-            sigma_val = float(sigma.item()) if hasattr(sigma, 'item') else float(sigma)
+            sigma_val = float(sigma.item()) if hasattr(sigma, "item") else float(sigma)
             if sigma_val >= 1.25:
                 return 600.0  # Above 0.5
             else:
@@ -350,7 +294,7 @@ class TestComputeBoundarySwitchingStep:
         assert isinstance(switching_step, int)
         assert 0 <= switching_step < 4
 
-    @patch('comfy.samplers.calculate_sigmas')
+    @patch("comfy.samplers.calculate_sigmas")
     def test_boundary_never_crossed(self, mock_calculate_sigmas):
         """Test when boundary is never crossed."""
         import torch
@@ -368,7 +312,7 @@ class TestComputeBoundarySwitchingStep:
         # Should return last valid step (steps-1)
         assert switching_step == 3
 
-    @patch('comfy.samplers.calculate_sigmas')
+    @patch("comfy.samplers.calculate_sigmas")
     def test_boundary_at_zero(self, mock_calculate_sigmas):
         """Test edge case with boundary=0."""
         import torch
@@ -386,7 +330,7 @@ class TestComputeBoundarySwitchingStep:
         # Should switch at first step where timestep < 0 (which should be step 1)
         assert switching_step == 1
 
-    @patch('comfy.samplers.calculate_sigmas')
+    @patch("comfy.samplers.calculate_sigmas")
     def test_boundary_at_one(self, mock_calculate_sigmas):
         """Test edge case with boundary=1.0."""
         import torch

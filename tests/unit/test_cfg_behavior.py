@@ -6,54 +6,17 @@ The issue was that all existing tests used lightning_cfg=1.0, so when we
 accidentally hardcoded Stage 3 to always use 1.0, tests still passed.
 """
 
-import pytest
-import sys
 import os
+import sys
 from unittest.mock import MagicMock
 
-# Add parent directory to path to import the module
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pytest
 
-# Import assertion helper
-from conftest import TripleKSamplerAssertions
-
-# Check if ComfyUI dependencies are available
-COMFYUI_AVAILABLE = False
-try:
-    import importlib.util
-
-    # Add ComfyUI root to path
-    comfyui_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
-    sys.path.insert(0, comfyui_root)
-
-    # Test ComfyUI import first
-    import comfy.model_sampling
-    import comfy.samplers
-
-    # Load the main module directly
-    project_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    main_module_path = os.path.join(project_path, 'nodes.py')
-    spec = importlib.util.spec_from_file_location('nodes', main_module_path)
-    if spec and spec.loader:
-        module = importlib.util.module_from_spec(spec)
-        sys.modules['nodes'] = module
-        spec.loader.exec_module(module)
-
-        # Get the classes
-        TripleKSamplerAdvanced = module.TripleKSamplerAdvanced
-        TripleKSampler = module.TripleKSampler
-    else:
-        raise ImportError("Could not load main module")
-    COMFYUI_AVAILABLE = True
-except Exception as e:
-    # ComfyUI dependencies not available - tests will be skipped
-    pass
+# Import from conftest (classes are loaded there)
+from conftest import COMFYUI_AVAILABLE, TripleKSampler, TripleKSamplerAdvanced
 
 
-@pytest.mark.skipif(
-    not COMFYUI_AVAILABLE,
-    reason="ComfyUI dependencies not available"
-)
+@pytest.mark.skipif(not COMFYUI_AVAILABLE, reason="ComfyUI dependencies not available")
 class TestCFGBehavior:
     """Test CFG parameter behavior - this would have caught the refactoring bug!"""
 
@@ -69,7 +32,7 @@ class TestCFGBehavior:
 
         # Add proper model configurations
         for model in [self.mock_base_high, self.mock_lightning_high, self.mock_lightning_low]:
-            model.model.model_config.sampling_settings = {'shift': 1.0, 'multiplier': 1000}
+            model.model.model_config.sampling_settings = {"shift": 1.0, "multiplier": 1000}
             model.clone.return_value = model
 
         # Add proper mock sampling for boundary calculations
@@ -82,6 +45,7 @@ class TestCFGBehavior:
 
         # Create a proper mock tensor with real device/dtype for dry run
         import torch
+
         mock_tensor = torch.zeros((1, 4, 8, 8))
         self.mock_latent = {"samples": mock_tensor}
 
@@ -125,6 +89,7 @@ class TestCFGBehavior:
             # This should work without errors for any lightning_cfg value
             # dry_run now raises InterruptProcessingException
             import comfy.model_management
+
             with pytest.raises(comfy.model_management.InterruptProcessingException):
                 self.advanced_node.sample(**params)
 
@@ -139,8 +104,12 @@ class TestCFGBehavior:
         required_params = input_types.get("required", {})
         optional_params = input_types.get("optional", {})
 
-        assert "lightning_cfg" not in required_params, "Simple node should not expose lightning_cfg as required parameter"
-        assert "lightning_cfg" not in optional_params, "Simple node should not expose lightning_cfg as optional parameter"
+        assert "lightning_cfg" not in required_params, (
+            "Simple node should not expose lightning_cfg as required parameter"
+        )
+        assert "lightning_cfg" not in optional_params, (
+            "Simple node should not expose lightning_cfg as optional parameter"
+        )
 
     def test_advanced_node_parameter_inclusion(self):
         """Test that Advanced node properly exposes lightning_cfg parameter."""
@@ -149,13 +118,19 @@ class TestCFGBehavior:
 
         required_params = input_types.get("required", {})
 
-        assert "lightning_cfg" in required_params, "Advanced node should expose lightning_cfg as required parameter"
+        assert "lightning_cfg" in required_params, (
+            "Advanced node should expose lightning_cfg as required parameter"
+        )
 
         # Check the parameter configuration
         lightning_cfg_config = required_params["lightning_cfg"]
-        assert isinstance(lightning_cfg_config, tuple), "lightning_cfg should be properly configured"
+        assert isinstance(lightning_cfg_config, tuple), (
+            "lightning_cfg should be properly configured"
+        )
         assert lightning_cfg_config[0] == "FLOAT", "lightning_cfg should be a FLOAT parameter"
-        assert isinstance(lightning_cfg_config[1], dict), "lightning_cfg should have configuration dict"
+        assert isinstance(lightning_cfg_config[1], dict), (
+            "lightning_cfg should have configuration dict"
+        )
         assert lightning_cfg_config[1]["default"] == 1.0, "lightning_cfg should default to 1.0"
 
     def test_cfg_parameter_differentiation_smoke_test(self):
@@ -177,7 +152,7 @@ class TestCFGBehavior:
             "sigma_shift": 5.0,
             "base_steps": 3,
             "base_quality_threshold": 20,
-            "base_cfg": 3.5,      # Different from lightning_cfg
+            "base_cfg": 3.5,  # Different from lightning_cfg
             "lightning_cfg": 7.2,  # Different from base_cfg
             "lightning_start": 1,
             "lightning_steps": 8,
@@ -194,6 +169,7 @@ class TestCFGBehavior:
         # This should work without errors when CFG values are different
         # dry_run now raises InterruptProcessingException
         import comfy.model_management
+
         with pytest.raises(comfy.model_management.InterruptProcessingException):
             self.advanced_node.sample(**params)
 
