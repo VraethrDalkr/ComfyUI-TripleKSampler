@@ -33,7 +33,17 @@ if custom_nodes_dir.exists():
             wanvideo_dir = item
             break
 
-wanvideo_available = wanvideo_dir is not None and (wanvideo_dir / "__init__.py").exists()
+# Verify WanVideoWrapper is properly installed by checking for required files
+# This prevents crashes if directory exists but WanVideoSampler is unavailable
+if wanvideo_dir is not None:
+    required_files = [
+        wanvideo_dir / "__init__.py",
+        wanvideo_dir / "nodes_sampler.py",  # Contains WanVideoSampler class
+        wanvideo_dir / "wanvideo" / "schedulers" / "__init__.py",  # Contains scheduler functions
+    ]
+    wanvideo_available = all(f.exists() for f in required_files)
+else:
+    wanvideo_available = False
 
 # Import WanVideo wrapper nodes (optional - will fail gracefully if ComfyUI-WanVideoWrapper not installed)
 if not wanvideo_available:
@@ -72,7 +82,7 @@ else:
             "[TripleKSampler] INFO: Only KSampler nodes will be registered. Check WanVideoWrapper installation."
         )
 
-__version__ = "0.10.4"
+__version__ = "0.10.5"
 __author__ = "VraethrDalkr"
 __description__ = "Triple-stage KSampler for Wan2.2 split models with Lightning LoRA"
 

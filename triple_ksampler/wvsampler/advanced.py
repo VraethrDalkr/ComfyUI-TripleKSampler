@@ -27,9 +27,6 @@ from triple_ksampler.shared import config as core_config
 from triple_ksampler.shared import models as core_models
 from triple_ksampler.shared import notifications as core_notifications
 
-# Import utility functions
-from .utils import get_wanvideo_components
-
 # Load configuration
 _CONFIG = core_config.load_config(config_dir=Path(__file__).resolve().parent.parent.parent)
 _DEFAULT_BASE_QUALITY_THRESHOLD = core_config.get_base_quality_threshold(_CONFIG)
@@ -79,10 +76,11 @@ class TripleWVSamplerAdvancedAlt(TripleKSamplerBase):
     )
 
     def __init__(self):
-        """Initialize TripleWVSamplerAdvancedAlt with WanVideoSampler instance."""
-        # Lazy load the WanVideoSampler class and scheduler components
-        WanVideoSamplerClass, _, _ = get_wanvideo_components()
-        self.wanvideo_sampler = WanVideoSamplerClass()
+        """Initialize TripleWVSamplerAdvancedAlt with lazy WanVideoSampler loading."""
+        # Lazy initialization - WanVideoSampler instantiated in sample() at runtime
+        # This avoids import order issues where WanVideoWrapper might not be loaded yet
+        self.wanvideo_sampler = None
+        self.get_scheduler = None
 
     def _compute_wanvideo_boundary_switching_step(
         self,
@@ -120,12 +118,11 @@ class TripleWVSamplerAdvancedAlt(TripleKSamplerBase):
         """
         import torch
 
-        # Get WanVideo's scheduler function
-        _, _, get_scheduler = get_wanvideo_components()
-
-        if get_scheduler is None:
+        # Use lazy-loaded scheduler function (initialized in sample())
+        # If not initialized yet, fall back to 50% (shouldn't happen in normal flow)
+        if self.get_scheduler is None:
             logger.warning(
-                "WanVideo get_scheduler not available. Falling back to 50% switch point."
+                "WanVideo get_scheduler not initialized yet. Falling back to 50% switch point."
             )
             return math.ceil(steps / 2)
 
@@ -140,7 +137,7 @@ class TripleWVSamplerAdvancedAlt(TripleKSamplerBase):
         # Use WanVideo's native scheduler to get sigmas
         device = torch.device("cpu")  # Use CPU for calculation
         try:
-            sample_scheduler, timesteps, _, _ = get_scheduler(
+            sample_scheduler, timesteps, _, _ = self.get_scheduler(
                 scheduler,
                 steps,
                 start_step=0,
@@ -191,15 +188,61 @@ class TripleWVSamplerAdvancedAlt(TripleKSamplerBase):
         """Define input types with explicit parameter order for AdvancedAlt (static UI).
 
         All parameters are in the "required" section for static UI.
-        Only called if WanVideoWrapper is available (conditional registration in __init__.py).
+        Uses NODE_CLASS_MAPPINGS runtime lookup to avoid import order issues.
 
         Returns:
             Dict mapping input names to their type specifications
         """
-        # Get WanVideoSampler's INPUT_TYPES and scheduler list dynamically
-        # No fallback needed - node only registered if WanVideo available
-        WanVideoSamplerClass, scheduler_list, _ = get_wanvideo_components()
-        original_inputs = WanVideoSamplerClass.INPUT_TYPES()
+        # Get WanVideoSampler's INPUT_TYPES from NODE_CLASS_MAPPINGS (load order independent)
+        from nodes import NODE_CLASS_MAPPINGS
+
+        if "WanVideoSampler" in NODE_CLASS_MAPPINGS:
+            # WanVideoWrapper loaded - get actual INPUT_TYPES structure
+            original_inputs = NODE_CLASS_MAPPINGS["WanVideoSampler"].INPUT_TYPES()
+            # Extract scheduler list from original inputs
+            scheduler_spec = original_inputs.get("required", {}).get("scheduler", [])
+            scheduler_list = (
+                scheduler_spec[0] if isinstance(scheduler_spec, tuple) else scheduler_spec
+            )
+        else:
+            # Fallback: WanVideoWrapper not loaded yet (or broken)
+            # Prevents startup crashes when WanVideoWrapper directory exists but registration failed
+            # Nodes built with fallback are non-functional (raise RuntimeError at execution)
+            # but prevent ComfyUI startup crash during load order race conditions
+            scheduler_list = [
+                "unipc",
+                "unipc/beta",
+                "dpm++",
+                "dpm++/beta",
+                "dpm++_sde",
+                "dpm++_sde/beta",
+                "euler",
+                "euler/beta",
+                "longcat_distill_euler",
+                "deis",
+                "lcm",
+                "lcm/beta",
+                "res_multistep",
+                "flowmatch_causvid",
+                "flowmatch_distill",
+                "flowmatch_pusa",
+                "multitalk",
+                "sa_ode_stable",
+                "rcm",
+            ]
+            original_inputs = {
+                "required": {
+                    "image_embeds": ("WANVIDIMAGE_EMBEDS",),
+                    "seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF}),
+                    "shift": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 100.0, "step": 0.01}),
+                    "scheduler": (scheduler_list, {"default": "unipc"}),
+                    "force_offload": ("BOOLEAN", {"default": True}),
+                    "riflex_freq_index": ("INT", {"default": 0}),
+                    "batched_cfg": ("BOOLEAN", {"default": False}),
+                    "rope_function": (["default", "comfy", "comfy_chunked"],),
+                },
+                "optional": {},
+            }
 
         # Build required section with exact parameter order
         required = {}
@@ -478,6 +521,26 @@ class TripleWVSamplerAdvancedAlt(TripleKSamplerBase):
         Returns:
             Tuple of (samples_latent_dict, denoised_samples_latent_dict)
         """
+        # === Lazy Initialization of WanVideoSampler ===
+        # Initialize WanVideoSampler and scheduler at runtime to avoid import order issues
+        if self.wanvideo_sampler is None:
+            from nodes import NODE_CLASS_MAPPINGS
+
+            if "WanVideoSampler" not in NODE_CLASS_MAPPINGS:
+                raise RuntimeError(
+                    "WanVideoSampler not available. "
+                    "Ensure ComfyUI-WanVideoWrapper is properly installed and loaded."
+                )
+
+            # Instantiate WanVideoSampler from NODE_CLASS_MAPPINGS
+            WanVideoSamplerClass = NODE_CLASS_MAPPINGS["WanVideoSampler"]
+            self.wanvideo_sampler = WanVideoSamplerClass()
+
+            # Get scheduler function from utils (safe at runtime after all modules loaded)
+            from .utils import get_wanvideo_components
+
+            _, _, self.get_scheduler = get_wanvideo_components()
+
         # === DEBUG Section: Input Parameters ===
         if str(_LOG_LEVEL).upper() == "DEBUG":
             bare_logger.info("")
@@ -670,9 +733,6 @@ class TripleWVSamplerAdvancedAlt(TripleKSamplerBase):
                 try:
                     import torch
 
-                    # Get WanVideo scheduler function
-                    _, _, get_scheduler = get_wanvideo_components()
-
                     # Get transformer dimension from model
                     try:
                         transformer_dim = (
@@ -684,8 +744,12 @@ class TripleWVSamplerAdvancedAlt(TripleKSamplerBase):
                         transformer_dim = 5120  # Default for Wan 14B models (most common)
 
                     # Recalculate sigmas with refined shift to show updated schedule
+                    # get_scheduler should be initialized by now (lazy init in sample() above)
+                    if self.get_scheduler is None:
+                        raise RuntimeError("get_scheduler not initialized")
+
                     device = torch.device("cpu")
-                    sample_scheduler_refined, _, _, _ = get_scheduler(
+                    sample_scheduler_refined, _, _, _ = self.get_scheduler(
                         lightning_scheduler,
                         lightning_steps,
                         start_step=0,

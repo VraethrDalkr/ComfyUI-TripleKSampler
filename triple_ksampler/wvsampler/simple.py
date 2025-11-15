@@ -21,9 +21,6 @@ from triple_ksampler.shared import config as core_config
 # Import advanced class to inherit from
 from .advanced import TripleWVSamplerAdvanced
 
-# Import utility functions
-from .utils import get_wanvideo_components
-
 # Set up logger
 logger = logging.getLogger("triple_ksampler.wvsampler.simple")
 
@@ -55,15 +52,62 @@ class TripleWVSampler(TripleWVSamplerAdvanced):
     def INPUT_TYPES(cls) -> dict[str, Any]:
         """Define simplified input types with only essential parameters.
 
-        Only called if WanVideoWrapper is available (conditional registration in __init__.py).
+        Uses NODE_CLASS_MAPPINGS runtime lookup to avoid import order issues.
+        Provides fallback if WanVideoSampler not yet registered.
 
         Returns:
             Dict mapping input names to their type specifications
         """
-        # Get WanVideoSampler's INPUT_TYPES and scheduler list dynamically
-        # No fallback needed - node only registered if WanVideo available
-        WanVideoSamplerClass, scheduler_list, _ = get_wanvideo_components()
-        original_inputs = WanVideoSamplerClass.INPUT_TYPES()
+        # Get WanVideoSampler's INPUT_TYPES from NODE_CLASS_MAPPINGS (load order independent)
+        from nodes import NODE_CLASS_MAPPINGS
+
+        if "WanVideoSampler" in NODE_CLASS_MAPPINGS:
+            # WanVideoWrapper loaded - get actual INPUT_TYPES structure
+            original_inputs = NODE_CLASS_MAPPINGS["WanVideoSampler"].INPUT_TYPES()
+            # Extract scheduler list from original inputs
+            scheduler_spec = original_inputs.get("required", {}).get("scheduler", [])
+            scheduler_list = (
+                scheduler_spec[0] if isinstance(scheduler_spec, tuple) else scheduler_spec
+            )
+        else:
+            # Fallback: WanVideoWrapper not loaded yet (or broken)
+            # Prevents startup crashes when WanVideoWrapper directory exists but registration failed
+            # Nodes built with fallback are non-functional (raise RuntimeError at execution)
+            # but prevent ComfyUI startup crash during load order race conditions
+            scheduler_list = [
+                "unipc",
+                "unipc/beta",
+                "dpm++",
+                "dpm++/beta",
+                "dpm++_sde",
+                "dpm++_sde/beta",
+                "euler",
+                "euler/beta",
+                "longcat_distill_euler",
+                "deis",
+                "lcm",
+                "lcm/beta",
+                "res_multistep",
+                "flowmatch_causvid",
+                "flowmatch_distill",
+                "flowmatch_pusa",
+                "multitalk",
+                "sa_ode_stable",
+                "rcm",
+            ]
+            original_inputs = {
+                "required": {
+                    "image_embeds": ("WANVIDIMAGE_EMBEDS",),
+                    "seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF}),
+                    "shift": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 100.0, "step": 0.01}),
+                    "scheduler": (scheduler_list, {"default": "unipc"}),
+                    "force_offload": ("BOOLEAN", {"default": True}),
+                    "riflex_freq_index": ("INT", {"default": 0}),
+                    "batched_cfg": ("BOOLEAN", {"default": False}),
+                    "rope_function": (["default", "comfy", "comfy_chunked"],),
+                },
+                "optional": {},
+            }
 
         # Build simplified required section with exact parameter order
         required = {}

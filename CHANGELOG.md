@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.10.5] - 2025-11-15
+
+### Fixed
+- **WanVideoWrapper INPUT_TYPES() crash (issue #11)**
+  - Fixed startup crash when WanVideoWrapper directory exists but node not fully loaded
+  - Use NODE_CLASS_MAPPINGS runtime lookup instead of import-time verification
+  - Corrected fallback values to match actual WanVideoWrapper API
+  - Added regression tests to prevent future crashes
+
 ## [0.10.4] - 2025-11-14
 
 ### Changed

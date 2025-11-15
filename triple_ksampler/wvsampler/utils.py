@@ -12,9 +12,6 @@ import sys
 # Get logger
 logger = logging.getLogger("triple_ksampler.wvsampler.utils")
 
-# Module-level cache for WanVideo unavailability
-_WANVIDEO_UNAVAILABLE = False
-
 
 def get_wanvideo_components():
     """Lazy loader for WanVideoSampler class and scheduler functions.
@@ -23,17 +20,15 @@ def get_wanvideo_components():
     ComfyUI loads custom_nodes in arbitrary order, so we can't rely on
     WanVideoWrapper being available at module import time.
 
+    Now safe to call at runtime (in sample() method) since all modules are loaded.
+    Uses function-level cache to avoid redundant searches within same execution.
+
     Returns:
         Tuple of (WanVideoSampler class, scheduler_list, get_scheduler function)
 
     Raises:
         ImportError: If WanVideoWrapper components cannot be found
     """
-    global _WANVIDEO_UNAVAILABLE
-
-    # If we already know WanVideo is unavailable, raise immediately
-    if _WANVIDEO_UNAVAILABLE:
-        raise ImportError("WanVideoSampler not available (cached)")
 
     # Use module-level cache to avoid repeated searches
     cache_key = "_wanvideo_cache"
@@ -76,8 +71,6 @@ def get_wanvideo_components():
             pass  # Silent fallback
 
     if sampler_class is None:
-        # Cache unavailable state (message logged in __init__.py during registration)
-        _WANVIDEO_UNAVAILABLE = True
         raise ImportError("WanVideoSampler not available")
 
     # Import scheduler components from WanVideoWrapper
@@ -129,8 +122,6 @@ def get_wanvideo_components():
             pass  # Silent fallback
 
     if scheduler_list is None or get_scheduler_func is None:
-        # Cache unavailable state (sampler already logged the message)
-        _WANVIDEO_UNAVAILABLE = True
         raise ImportError("WanVideo scheduler components not available")
 
     result = (sampler_class, scheduler_list, get_scheduler_func)
